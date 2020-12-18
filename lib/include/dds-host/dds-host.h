@@ -80,7 +80,22 @@
 #define DAC_REG_NCO_FREQ_0          0x09
 #define DAC_REG_NCO_FREQ_1          0x0A
 #define DAC_REG_NCO_FREQ_3          0x0B
-#define DAC_REG_NC0_FREQ_4          0x0
+#define DAC_REG_NC0_FREQ_4          0x0C
+#define NCO_PHASE_0                 0x0D
+#define NCO_PHASE_1                 0x0E
+#define DACA_OFFSET_0               0x0F
+#define DACB_OFFSET_0               0x10
+#define DACA_OFFSET_1               0x11
+#define DACB_OFFSET_1               0x12
+#define QMCA_GAIN_0                 0x13
+#define QMCB_GAIN_0                 0x14
+#define QMC_PHASE_0                 0x15
+#define QMC_PHASE_GAIN_1            0x16
+#define DACA_GAIN_0                 0x17
+#define DACB_GAIN_0                 0x18
+#define DACA_DACB_GAIN_1            0x19
+#define ATEST                       0x1B
+#define DAC_TEST                    0x1C
 
 typedef struct mcp_generic_packet_st {
   uint8_t __data__[64];
