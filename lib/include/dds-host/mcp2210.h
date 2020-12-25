@@ -304,12 +304,4 @@ bool MCP2210_RequestSpiBusRelease(hid_device *handle);
 // reads the current chip status. returns false on read failure, true otherwise.
 bool MCP2210_ReadChipStatus(hid_device *handle);
 
-// performs a generic write/read operation. Returns false on failure.
-// Stores the responses from the MCP2210 in 'response'.
-static bool MCP2210_GenericWriteRead(hid_device *handle, 
-                                      MCP2210Command cmd,
-                                      MCP2210SubCommand subCmd,
-                                      MCP2210GenericPacket data,
-                                      MCP2210GenericPacket *response);
-
 #endif  // MCP2210_H_
