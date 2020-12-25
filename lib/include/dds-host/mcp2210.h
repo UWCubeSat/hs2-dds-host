@@ -288,8 +288,12 @@ bool MCP2210_ReadEEPROM(unsigned char addr, unsigned char *byte);
 bool MCP2210_ReadInterruptCount(unsigned int *interrupts);
 
 // initiates a SPI data transfer that is 'bytes' long (0 <= bytes < 65536).
-// Returns true on success, false otherwise
-bool MCP2210_SpiDataTransfer(hid_device *handle, unsigned int bytes, unsigned char * data, Device dev);
+// Returns -1 if transfer fails, otherwise returns the number of received bytes.
+int MCP2210_SpiDataTransfer(hid_device *handle,
+                              unsigned int txBytes,
+                              unsigned char * txData,
+                              unsigned char *rxData,
+                              Device dev);
 
 // cancels an ongoing SPI transfers. Returns false on failure, true on success
 bool MCP2210_CancelSpiDataTransfer(hid_device *handle);
