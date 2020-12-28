@@ -29,9 +29,6 @@
 #ifndef MCP2210_H_
 #define MCP2210_H_
 
-// HIDAPI
-#include "hidapi.h"
-
 // device ID for our application
 #define VID                         0x04D8
 #define PID                         0x00DE
@@ -54,20 +51,13 @@
 // Manufacturer name stuff
 #define MAX_MAN_STR_LEN             29
 
-// Convenient members for GPIO Pin Directions
-typedef struct mcp2210_gpio_pin_dir_st {
-  unsigned char gp0:1;
-  unsigned char gp1:1;
-  unsigned char gp2:1;
-  unsigned char gp3:1;
-  unsigned char gp4:1;
-  unsigned char gp5:1;
-  unsigned char gp6:1;
-  unsigned char gp7:1;
-  unsigned char gp8:1;
-} MCP2210GPIOPinDir;
+// EEPROM stuff
+#define EEPROM_MAX_ADDR             255
 
-// Convenient members for GPIO Pin Values
+// SPI Data transfer stuff
+#define MAX_TRANSACTION_BYTES       65536
+
+// Convenient members for GPIO Pins
 typedef struct mcp2210_gpio_pin_val_st {
   unsigned char gp0:1;
   unsigned char gp1:1;
@@ -78,7 +68,7 @@ typedef struct mcp2210_gpio_pin_val_st {
   unsigned char gp6:1;
   unsigned char gp7:1;
   unsigned char gp8:1;
-} MCP2210GPIOPinVal;
+} MCP2210GPIOBitFields;
 
 // All command codes listed in the MCP2210 datasheet
 typedef enum mcp2210_command_t {
@@ -154,8 +144,8 @@ typedef struct mcp2210_chip_settings_st {
   unsigned char gp6_des;
   unsigned char gp7_des;
   unsigned char gp8_des;
-  MCP2210GPIOPinVal default_val;
-  MCP2210GPIOPinDir default_dir;
+  MCP2210GPIOBitFields default_val;
+  MCP2210GPIOBitFields default_dir;
   unsigned char chip_settings;
   unsigned char chip_access_control;
   MCP2210AccessPassword pass;
@@ -164,13 +154,13 @@ typedef struct mcp2210_chip_settings_st {
 
 typedef struct mcp2210_gpio_val_settings_st {
   unsigned char __pad1__[4];
-  MCP2210GPIOPinVal pin_vals;
+  MCP2210GPIOBitFields pin_vals;
   unsigned char __pad2__[58];
 } MCP2210GPIOPinValSettings;
 
 typedef struct mcp2210_gpio_dir_settings_st {
   unsigned char __pad1__[4];
-  MCP2210GPIOPinDir pin_dirs;
+  MCP2210GPIOBitFields pin_dirs;
   unsigned char __pad2__[58];
 } MCP2210GPIOPinDirSettings;
 
@@ -221,6 +211,20 @@ typedef struct mcp2210_spi_data_transfer_res_st {
   unsigned char spi_data[60];
 } MCP2210SPIDataTransferResponse;
 
+// Struct that represents an MCP2210 instances
+typedef struct mcp2210_st {
+  unsigned char _VID;
+  unsigned char _PID;
+  MCP2210AccessPassword password;
+  MCP2210ChipSettings chipSettings;
+  MCP2210SPITransferSettings spiTransferSettings;
+  MCP2210USBKeySettings usbKeySettings;
+  MCP2210GPIOPinDirSettings gpioPinDirSettings;
+  MCP2210GPIOPinValSettings gpioPinValSettings;
+  char *manufacturerName;
+  char *productName;
+} MCP2210;
+
 // maps to GPIO pin configured as CS. Expand this enum for
 // other devices using the following pattern:
 // (0x01 << CS_PIN_NUM)
@@ -235,7 +239,7 @@ bool MCP2210_Init(hid_device **out);
 
 // updates spi transfer settings. if 'vm' is false, updates NVRAM settings.
 // otherwise, updates ram settings. Returns false if write fails, true otherwise.
-bool MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettings newSettings, bool vm);
+bool MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettings *newSettings, bool vm);
 
 // get current spi transfer settings. if 'vm' is false, reads NVRAM settings.
 // otherwise, reads ram settings. returns false if read fails, true otherwise.
@@ -243,7 +247,7 @@ bool MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *cur
 
 // updates chip settings. if 'vm' is false, updates NVRAM settings.
 // otherwise, updates ram settings. Returns false if write fails, true otherwise.
-bool MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings newSettings, bool vm);
+bool MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings *newSettings, bool vm);
 
 // reads chip settings. if 'vm' is false, reads NVRAM settings.
 // otherwise, reads ram settings. Returns false if read fails, true otherwise.
@@ -254,44 +258,44 @@ bool MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass);
 
 // updates the manufacturer string that the MCP2210 displays when enumerated. returns
 // false if write fails, true otherwise.
-bool MCP2210_WriteManufacturerName(hid_device *handle, const char * newName, size_t nameLen);
+bool MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size_t nameLen);
 
 // reads the configured manufacturer string. returns false if read fails, true otherwise.
-bool MCP2210_ReadManufacturerName(hid_device *handle, char currentName[30]);
+bool MCP2210_ReadManufacturerName(hid_device *handle, char *currentName);
 
 // updates the product string that the MCP2210 displays when enumerated. returns
 // false if write fails, true otherwise.
 bool MCP2210_WriteProductName(hid_device *handle, const char * newName, size_t nameLen);
 
 // reads the configured manufacturer string. returns false if read fails, true otherwise.
-bool MCP2210_ReadProductName(hid_device *handle, char currentName[30]);
+bool MCP2210_ReadProductName(hid_device *handle, char *currentName);
 
 // updates the current GPIO pin values. returns false if write fails, true otherwise.
-bool MCP2210_WriteGPIOValues(hid_device *handle, MCP2210GPIOPinValSettings newSettings);
+bool MCP2210_WriteGPIOValues(hid_device *handle, const MCP2210GPIOPinValSettings *newSettings);
 
 // reads the current GPIO pin values. returns false if read fails, true otherwise.
 bool MCP2210_ReadGPIOValues(hid_device *handle, MCP2210GPIOPinValSettings *currentSettings);
 
 // updates the current GPIO pin directions. returns false if write fails, true otherwise.
-bool MCP2210_WriteGPIODirections(hid_device *handle, MCP2210GPIOPinDirSettings newSettings);
+bool MCP2210_WriteGPIODirections(hid_device *handle, const MCP2210GPIOPinDirSettings *newSettings);
 
 // reads the current GPIO pin directions. returns false if read fails, true otherwise.
 bool MCP2210_ReadGPIODirections(hid_device *handle, MCP2210GPIOPinDirSettings *currentSettings);
 
 // writes to an MCP2210 EEPROM location. returns false if the write fails, true otherwise.
-bool MCP2210_WriteEERPOM(unsigned char addr, unsigned char byte);
+bool MCP2210_WriteEERPOM(hid_device *handle, unsigned char addr, unsigned char byte);
 
 // reads from an MCP2210 EEPROM location. returns false if the read fails, true otherwise. 
-bool MCP2210_ReadEEPROM(unsigned char addr, unsigned char *byte);
+bool MCP2210_ReadEEPROM(hid_device *handle, unsigned char addr, unsigned char *byte);
 
 // reads the current number of interrupt events. returns false if the read fails, true otherwise.
-bool MCP2210_ReadInterruptCount(unsigned int *interrupts);
+bool MCP2210_ReadInterruptCount(hid_device *handle, unsigned int *interrupts, bool reset);
 
 // initiates a SPI data transfer that is 'bytes' long (0 <= bytes < 65536).
 // Returns -1 if transfer fails, otherwise returns the number of received bytes.
 int MCP2210_SpiDataTransfer(hid_device *handle,
                               unsigned int txBytes,
-                              unsigned char * txData,
+                              unsigned char *txData,
                               unsigned char *rxData,
                               Device dev);
 
