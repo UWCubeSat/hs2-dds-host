@@ -1,24 +1,81 @@
-SDIR=./src
-IDIR=./lib/include
-ODIR=./obj
+# MIT License
+#
+# Copyright (c) 2020 Eli Reed
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-CC=gcc
-CFLAGS=-g -Wall
+# Simple makefile: Compile all .c files into .o files, generating "dependency" .d files too (see
+# https://stackoverflow.com/q/2394609)
 
-INCLUDES=-I$(IDIR) -I/usr/include/hidapi
+# Copyright (c) 2020 Mark Polyakov (If you edit the file, add your name here!)
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
-LIBS=-lhidapi-libusb
+# Simple makefile: Compile all .c files into .o files, generating "dependency" .d files too (see
+# https://stackoverflow.com/q/2394609)
 
-SOURCES=dds-host.c
+SRCDIR 	:= ./src
+SRCS 		:= $(wildcard $(SRCDIR)/*.c)
 
-EXE=dds-host
+OUTDIR 	:= ./out
+OBJS 		:= $(SRCS:$(SRCDIR)/%.c=$(OUTDIR)/%.o)
 
-all: $(EXE)
+DEPS 		:= $(OBJS:%.o=%.d)
 
-$(EXE): $(SDIR)/$(SOURCES)
-	$(CC) $(CFLAGS) -o bin/$(EXE) $(SDIR)/$(SOURCES) $(INCLUDES) $(LIBS)
+BINDIR 	:= ./bin
+BIN  		:= dds-host
 
-.PHONY: clean
+CC   		:= gcc
+
+INCDIR  := lib/include
+
+LIBS    := -lhidapi-libusb
+CFLAGS := $(CFLAGS) -Wall -g -I$(INCDIR)
+
+all: $(BIN)
+
+$(BIN): $(OBJS)
+	$(CC) $(LDFLAGS) -o $(BINDIR)/$(BIN) $(OBJS) $(LIBS)
+
+$(OUTDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -MMD -c $< -o $@
+
+-include $(DEPS)
 
 clean:
-	rm -f bin/$(EXE)
+	rm -f $(OBJS)
+	rm -f $(DEPS)
+
+.PHONY: all clean
