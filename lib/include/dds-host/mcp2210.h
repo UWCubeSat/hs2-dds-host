@@ -211,7 +211,7 @@ typedef struct mcp2210_spi_data_transfer_res_st {
   unsigned char spi_data[60];
 } MCP2210SPIDataTransferResponse;
 
-// Struct that represents an MCP2210 instances
+// Struct that represents an MCP2210 instance
 typedef struct mcp2210_st {
   unsigned char _VID;
   unsigned char _PID;
@@ -265,7 +265,7 @@ bool MCP2210_ReadManufacturerName(hid_device *handle, char *currentName);
 
 // updates the product string that the MCP2210 displays when enumerated. returns
 // false if write fails, true otherwise.
-bool MCP2210_WriteProductName(hid_device *handle, const char * newName, size_t nameLen);
+bool MCP2210_WriteProductName(hid_device *handle, const char *newName, size_t nameLen);
 
 // reads the configured manufacturer string. returns false if read fails, true otherwise.
 bool MCP2210_ReadProductName(hid_device *handle, char *currentName);
@@ -297,7 +297,7 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
                               unsigned int txBytes,
                               unsigned char *txData,
                               unsigned char *rxData,
-                              Device dev);
+                              MCP2210SPITransferSettings *settings);
 
 // cancels an ongoing SPI transfers. Returns false on failure, true on success
 bool MCP2210_CancelSpiDataTransfer(hid_device *handle);

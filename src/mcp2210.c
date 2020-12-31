@@ -533,14 +533,14 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
                               unsigned int txBytes,
                               unsigned char *txData,
                               unsigned char *rxData,
-                              Device dev) {
+                              MCP2210SPITransferSettings *settings) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return false;
   }
 
   if (txData == NULL) {
-    fprintf(stderr, "input buffer must not be empty\n");
+    fprintf(stderr, "input buffer must not be null\n");
     return false;
   }
 
@@ -550,64 +550,24 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
   }
 
   if (txBytes > MAX_TRANSACTION_BYTES) {
-    fprintf(stderr, "can't transfer more bytes than 65536 bytes");
+    fprintf(stderr, "can't transfer more than 65536 bytes");
     return false;
   }
 
-  if (sizeof(&txData) != txBytes) {
-    fprintf(stderr, "size of tx buffer does not match bytes to send\n");
+  if (settings == NULL) {
+    fprintf(stderr, "settings can't be null\n");
     return false;
   }
 
-  // get the current spi settings
-  MCP2210SPITransferSettings spiSettings = {0};
+  // make sure the transaction is the right length
+  settings->bytes_per_transaction_low = txBytes;
+  settings->bytes_per_transaction_high = (txBytes >> 8);
 
-  if (!MCP2210_ReadSpiSettings(handle, &spiSettings, true)) {
+  // write the settings we were given
+  if (!MCP2210_WriteSpiSettings(handle, settings, true)) {
     return false;
   }
 
-  // get the current chip settings
-  MCP2210ChipSettings chipSettings = {0};
-
-  if (!MCP2210_ReadChipSettings(handle, &chipSettings, true)) {
-    return false;
-  }
-
-  // update the settings for this transfer
-  spiSettings.idle_cs_val_low |= 0xFF;
-  spiSettings.idle_cs_val_high |= 0xFF;
-  spiSettings.active_cs_val_low |= 0xFF;
-  spiSettings.active_cs_val_high |= 0xFF;
-  spiSettings.bytes_per_transaction_low = txBytes ;
-  spiSettings.bytes_per_transaction_high = (txBytes >> 8);
-
-  switch (dev) {
-    case DAC:
-      spiSettings.idle_cs_val_low |= DAC;
-      spiSettings.active_cs_val_low &= ~(DAC);
-
-      chipSettings.gp0_des = CS;
-      break;
-    case MEM:
-      spiSettings.idle_cs_val_low |= MEM;
-      spiSettings.active_cs_val_high &= ~(MEM);
-
-      chipSettings.gp1_des = CS;
-    break;
-    default:
-      fprintf(stderr, "unsupported device\n");
-      return false;
-    break;
-  }
-
-  // write any changes we made
-  if (!MCP2210_WriteChipSettings(handle, &chipSettings, true)) {
-    return false;
-  }
-
-  if (!MCP2210_WriteSpiSettings(handle, &spiSettings, true)) {
-    return false;
-  }
   // start processing the input buffer
   // we can transfer at most 60 bytes per spi transfer command,
   // so we need a running total of how many bytes we've sent
@@ -616,17 +576,22 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
   unsigned int rxBytes = 0;
   MCP2210SPIDataTransfer dataTransfer = {0};
   MCP2210SPIDataTransferResponse dataTransferResponse = {0};
+
+  // represents the number of times we want to try a write until
+  // we assume it's failed
   unsigned int const kTimeout = 1500;
+
+  // running total of how many times we've tried a write
   unsigned int tries = 0;
 
   // start writing
   do {
-    if (bytesLeft > 60) {
+    if (bytesLeft >= 60) {
       dataTransfer.bytes = 60;
-      memcpy(&dataTransfer.spi_data, txData, 60);
+      memcpy(&dataTransfer.spi_data, (txData + txBytes - bytesLeft), 60);
     } else {
       dataTransfer.bytes = bytesLeft;
-      memcpy(&dataTransfer.spi_data, txData, bytesLeft);
+      memcpy(&dataTransfer.spi_data, (txData + txBytes - bytesLeft), bytesLeft);
     }
 
     if (!MCP2210_GenericWriteRead(handle, SpiDataTransfer, None, (MCP2210GenericPacket *)&dataTransfer, (MCP2210GenericPacket *)&dataTransferResponse)) {
@@ -643,24 +608,26 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
           case 0x30:
             // received data available
             // process the received bytes
-            rxBytes += dataTransferResponse.bytes;
-            memcpy((&rxData + rxBytes), dataTransferResponse.spi_data, dataTransferResponse.bytes);
-
-            // update our count of the bytes we have left to send
-            bytesLeft -= dataTransfer.bytes;
-            break;
           case 0x10:
             // finished
+            rxBytes += dataTransferResponse.bytes;
+            memcpy((&rxData + rxBytes), dataTransferResponse.spi_data, dataTransferResponse.bytes);
             break;
         }
+
+        // update the bytes left only on success
+        bytesLeft -= dataTransfer.bytes;
         break;
       case 0xF7:
         // SPI data not accepted
+        printf("SPI data not accepted. External master has control of bus.\n");
         break;
       case 0xF8:
         // transfer in progress
+        printf("Transfer still in progress\n");
         break;
       default:
+        fprintf(stderr, "unknown response\n");
         break;
     }
     tries++;
