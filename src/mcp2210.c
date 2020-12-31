@@ -98,14 +98,14 @@ bool MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettin
     return false;
   }
 
-  MCP2210GenericPacket response = {0};
+  MCP2210GenericResponse response = {0};
 
   bool result;
   // determine if we're configuring power-up settings or current settings
   if (vm) {
-    result = MCP2210_GenericWriteRead(handle, SetCurrentSpiSettings, None, (MCP2210GenericPacket *)newSettings, &response);
+    result = MCP2210_GenericWriteRead(handle, SetCurrentSpiSettings, None, (MCP2210GenericPacket *)newSettings, (MCP2210GenericPacket *)&response);
   } else {
-    result = MCP2210_GenericWriteRead(handle, SetNVRAMSettings, SpiSettings, (MCP2210GenericPacket *)newSettings, &response);
+    result = MCP2210_GenericWriteRead(handle, SetNVRAMSettings, SpiSettings, (MCP2210GenericPacket *)newSettings, (MCP2210GenericPacket *)&response);
   }
 
   if (!result) {
@@ -113,8 +113,20 @@ bool MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettin
     return false;
   }
 
-  // TODO: process our response and decide what to do.
-  return true;
+  switch (response.status) {
+    case 0xFB:
+      fprintf(stderr, "Conditional access set\n");
+      return false;
+    case 0xF8:
+      printf("USB transfer in progress\n");
+      return false;
+    case 0x00:
+      printf("Command completed successfully\n");
+      return true;
+    default:
+      fprintf(stderr, "unknown response\n");
+      return false;
+  }
 }
 
 bool MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *currentSettings, bool vm) {
@@ -536,36 +548,38 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
                               MCP2210SPITransferSettings *settings) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (txData == NULL) {
     fprintf(stderr, "input buffer must not be null\n");
-    return false;
+    return -1;
   }
 
   if (rxData == NULL) {
     fprintf(stderr, "output buffer must not be empty\n");
-    return false;
+    return -1;
   }
 
   if (txBytes > MAX_TRANSACTION_BYTES) {
     fprintf(stderr, "can't transfer more than 65536 bytes");
-    return false;
+    return -1;
   }
 
   if (settings == NULL) {
     fprintf(stderr, "settings can't be null\n");
-    return false;
+    return -1;
   }
 
   // make sure the transaction is the right length
   settings->bytes_per_transaction_low = txBytes;
   settings->bytes_per_transaction_high = (txBytes >> 8);
+  printf("SPI bytes for this transfer: %d\n", txBytes);
 
   // write the settings we were given
   if (!MCP2210_WriteSpiSettings(handle, settings, true)) {
-    return false;
+    fprintf(stderr, "Failed to write settings before SPI transfer\n");
+    return -1;
   }
 
   // start processing the input buffer
@@ -614,7 +628,6 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
             memcpy((&rxData + rxBytes), dataTransferResponse.spi_data, dataTransferResponse.bytes);
             break;
         }
-
         // update the bytes left only on success
         bytesLeft -= dataTransfer.bytes;
         break;
@@ -627,7 +640,7 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
         printf("Transfer still in progress\n");
         break;
       default:
-        fprintf(stderr, "unknown response\n");
+        fprintf(stderr, "unknown SPI response\n");
         break;
     }
     tries++;
