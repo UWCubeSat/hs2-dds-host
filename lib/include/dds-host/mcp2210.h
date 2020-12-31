@@ -58,7 +58,7 @@
 #define MAX_TRANSACTION_BYTES       65536
 
 // Convenient members for GPIO Pins
-typedef struct mcp2210_gpio_pin_val_st {
+typedef struct mcp2210_gpio_bit_fields_st {
   unsigned char gp0:1;
   unsigned char gp1:1;
   unsigned char gp2:1;
