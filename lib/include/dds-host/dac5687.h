@@ -59,21 +59,14 @@ typedef enum dac5687_reg_t {
   DACTest = 0x1C,
 } DAC5687Address;
 
-typedef struct dac5687_st {
-  MCP2210 *dev;
+bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned char txByte);
 
-} DAC5687;
+bool DAC5687_WriteRegisters(hid_device *handle, DAC5687Address startAddr, unsigned char *txBytes, unsigned int bytes);
 
-bool DAC5687_WriteAddress(DAC5687 *dev, DAC5687Address addr, unsigned char byte);
+bool DAC5687_ReadRegister(hid_device *handle, DAC5687Address addr, unsigned char *rxByte);
 
-bool DAC5687_WriteAddress(DAC5687 *dev, DAC5687Address startAddr, unsigned char *byte, unsigned int bytes);
+bool DAC5687_ReadRegisters(hid_device *handle, DAC5687Address startAddr, unsigned char *rxBytes, unsigned int bytes);
 
-bool DAC5687_ReadAddress(DAC5687 *dev, DAC5687Address addr, unsigned char *byte);
-
-bool DAC5687_ReadAddress(DAC5687 *dev, DAC5687Address startAddr, unsigned char *byte, unsigned int bytes);
-
-bool DAC5687_Init(DAC5687 *dev);
-
-bool DAC5687_Configure();
+bool DAC5687_Init(hid_device **handle);
 
 #endif  // DAC5687_H_
