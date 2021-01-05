@@ -40,47 +40,109 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
     return false;
   }
 
+  if (addr == 0x08 || addr == 0x1A || addr >= 0x1D) {
+    fprintf(stderr, "can't write to address %x# as it's for factory use only\n", addr);
+    return false;
+  }
+
   // get current SPI settings
   MCP2210SPITransferSettings spiSettings = {0};
-  if (!MCP2210_ReadSpiSettings(handle, &spiSettings, true)) {
-    fprintf(stderr, "failed to read spi settings in dac register write\n");
+  if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
+    fprintf(stderr, "WriteRegister()->ReadSpiSettings() failed\n");
     return false;
   }
 
   // number of bytes in the transfer + 1 for the instruction cycle
-  spiSettings.br3 = 0xC0;
-  spiSettings.br2 = 0xC6;
-  spiSettings.br1 = 0x2D;
-  spiSettings.br0 = 0x00;
+  spiSettings.bitRate = 3000000;
 
-  spiSettings.bytes_per_transaction_low = 2;
-  spiSettings.bytes_per_transaction_high = 0;
+  spiSettings.bytesPerTransaction = 2;
 
-  spiSettings.cs_to_data_delay_low = 0x0A;
-  spiSettings.cs_to_data_delay_high = 0x00;
+  spiSettings.csToDataDelay = 0x01;
 
-  spiSettings.inter_data_delay_low = 0x00;
-  spiSettings.inter_data_delay_high = 0x00;
+  spiSettings.dataToDataDelay = 0x00;
 
-  spiSettings.last_data_to_cs_delay_low = 0x0A;
-  spiSettings.last_data_to_cs_delay_high = 0x00;
-
+  spiSettings.lastDataToCSDelay = 0x01;
   // CS_DAC is high when idle
-  spiSettings.idle_cs_val_low = 0x01;
-  spiSettings.idle_cs_val_high = 0x00;
+  spiSettings.idleCSValue = 0x0001;
 
   // CS_DAC is low when active
-  spiSettings.active_cs_val_low = 0x00;
-  spiSettings.active_cs_val_high = 0x00;
+  spiSettings.activeCSValue = 0x0000;
   
   // construct the instruction cycle byte
-  unsigned char instrByte = (addr & 0b00011111);
+  unsigned char instrByte = (addr & 0x1F);
 
   unsigned char spiTxBytes[2] = {instrByte, txByte};
-  unsigned char rxBytes[2];
+  unsigned char rxBuf[2];
 
-  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBytes, &spiSettings) == -1) {
-    fprintf(stderr, "DAC write failed\n");
+  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBuf, &spiSettings) < 0) {
+    fprintf(stderr, "WriteRegister() failed\n");
+    return false;
+  } 
+  return true;
+}
+
+bool DAC5687_WriteRegisters(hid_device *handle, DAC5687Address startAddr, unsigned char *txBytes, unsigned int bytes) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  if (txBytes == NULL) {
+    fprintf(stderr, "txBytes must not be null\n");
+    return false;
+  }
+
+  if (bytes > 4) {
+    fprintf(stderr, "can't write more than 4 more registers\n");
+    return false;
+  }
+
+  if (startAddr == 0x08 || startAddr == 0x1A || startAddr >= 0x1D) {
+    fprintf(stderr, "can't write to address %x# as it's for factory use only\n", startAddr);
+    return false;
+  }
+
+  if (bytes > (0x08 - startAddr) || bytes > (0x1A - startAddr) || bytes > (0x1D - startAddr)) {
+    fprintf(stderr, "write intersects with factory use only register\n");
+    return false;
+  }
+
+  // get current SPI settings
+  MCP2210SPITransferSettings spiSettings = {0};
+  if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
+    fprintf(stderr, "WriteRegisters()->ReadSpiSettings() failed\n");
+    return false;
+  }
+
+  // number of bytes in the transfer + 1 for the instruction cycle
+  spiSettings.bitRate = 3000000;
+
+  spiSettings.bytesPerTransaction = bytes + 1;
+
+  spiSettings.csToDataDelay = 0x01;
+
+  spiSettings.dataToDataDelay = 0x00;
+
+  spiSettings.lastDataToCSDelay = 0x01;
+  // CS_DAC is high when idle
+  spiSettings.idleCSValue = 0x0001;
+
+  // CS_DAC is low when active
+  spiSettings.activeCSValue = 0x0000;
+
+  // construct the instruction cycle byte
+  unsigned int writeBytes = bytes - 1;
+  unsigned char instrByte = (startAddr & 0x1F) | ((writeBytes & 0x03) << 5);
+
+  unsigned char spiTxBytes[bytes + 1];
+  unsigned char rxBuf[bytes + 1];
+
+  spiTxBytes[0] = instrByte;
+  memcpy(&spiTxBytes[1], txBytes, bytes);
+  memset(rxBuf, 0, sizeof(rxBuf));
+
+  if (MCP2210_SpiDataTransfer(handle, sizeof(spiTxBytes), spiTxBytes, rxBuf, &spiSettings) < 0) {
+    fprintf(stderr, "WriteRegisters() failed\n");
     return false;
   } 
   return true;
@@ -99,48 +161,107 @@ bool DAC5687_ReadRegister(hid_device *handle, DAC5687Address addr, unsigned char
 
   // get current SPI settings
   MCP2210SPITransferSettings spiSettings = {0};
-  if (!MCP2210_ReadSpiSettings(handle, &spiSettings, true)) {
-    fprintf(stderr, "failed to read spi settings in dac register read\n");
+  if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
+    fprintf(stderr, "ReadRegister()->ReadSpiSettings() failed\n");
     return false;
   }
 
-// number of bytes in the transfer + 1 for the instruction cycle
-  spiSettings.br3 = 0xC0;
-  spiSettings.br2 = 0xC6;
-  spiSettings.br1 = 0x2D;
-  spiSettings.br0 = 0x00;
+  // number of bytes in the transfer + 1 for the instruction cycle
+  spiSettings.bitRate = 3000000;
 
-  spiSettings.bytes_per_transaction_low = 2;
-  spiSettings.bytes_per_transaction_high = 0;
+  spiSettings.bytesPerTransaction = 2;
 
-  spiSettings.cs_to_data_delay_low = 0x0A;
-  spiSettings.cs_to_data_delay_high = 0x00;
+  spiSettings.csToDataDelay = 0x01;
 
-  spiSettings.inter_data_delay_low = 0x00;
-  spiSettings.inter_data_delay_high = 0x00;
+  spiSettings.dataToDataDelay = 0x00;
 
-  spiSettings.last_data_to_cs_delay_low = 0x0A;
-  spiSettings.last_data_to_cs_delay_high = 0x00;
+  spiSettings.lastDataToCSDelay = 0x01;
 
   // CS_DAC is high when idle
-  spiSettings.idle_cs_val_low = 0x01;
-  spiSettings.idle_cs_val_high = 0x00;
+  spiSettings.idleCSValue = 0x0001;
 
   // CS_DAC is low when active
-  spiSettings.active_cs_val_low = 0x00;
-  spiSettings.active_cs_val_high = 0x00;
+  spiSettings.activeCSValue = 0x0000;
   
   // construct the instruction cycle byte
-  unsigned char instrByte = (0x1 << 7) | (addr & 0b00011111);
+  unsigned char instrByte = (0x1 << 7) | (addr & 0x1F);
 
   unsigned char spiTxBytes[2] = {instrByte, 0x00};
-  unsigned char rxBytes[2];
+  unsigned char rxBuf[2];
 
-  if (MCP2210_SpiDataTransfer(handle, sizeof(spiTxBytes), spiTxBytes, rxBytes, &spiSettings) == -1) {
-    fprintf(stderr, "DAC write failed\n");
+  if (MCP2210_SpiDataTransfer(handle, sizeof(spiTxBytes), spiTxBytes, rxBuf, &spiSettings) < 0) {
+    fprintf(stderr, "RegisterRead() failed\n");
     return false;
   }
-  *rxByte = rxBytes[1];
-  printf("Rx[0] = %d, Rx[1] = %d\n", rxBytes[0], rxBytes[1]);
+  *rxByte = rxBuf[1];
+  return true;
+}
+
+bool DAC5687_ReadRegisters(hid_device *handle, DAC5687Address startAddr, unsigned char *rxBytes, unsigned int bytes) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  if (rxBytes == NULL) {
+    fprintf(stderr, "rxBytes must not be null\n");
+    return false;
+  }
+
+  if (bytes > 4) {
+    fprintf(stderr, "can't read more than 4 more registers\n");
+    return false;
+  }
+
+  if (startAddr == 0x08 || startAddr == 0x1A || startAddr >= 0x1D) {
+    fprintf(stderr, "can't read from address %x# as it's for factory use only\n", startAddr);
+    return false;
+  }
+
+  if (bytes > (0x08 - startAddr) || bytes > (0x1A - startAddr) || bytes > (0x1D - startAddr)) {
+    fprintf(stderr, "read intersects with factory use only register\n");
+    return false;
+  }
+
+  // get current SPI settings
+  MCP2210SPITransferSettings spiSettings = {0};
+  if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
+    fprintf(stderr, "ReadRegisters()->ReadSpiSettings() failed\n");
+    return false;
+  }
+
+  // number of bytes in the transfer + 1 for the instruction cycle
+  spiSettings.bitRate = 3000000;
+
+  spiSettings.bytesPerTransaction = bytes + 1;
+
+  spiSettings.csToDataDelay = 0x01;
+
+  spiSettings.dataToDataDelay = 0x00;
+
+  spiSettings.lastDataToCSDelay = 0x01;
+
+  // CS_DAC is high when idle
+  spiSettings.idleCSValue = 0x0001;
+
+  // CS_DAC is low when active
+  spiSettings.activeCSValue = 0x0000;
+  
+  // construct the instruction cycle byte
+  unsigned char readBytes = bytes - 1;
+  unsigned char instrByte = (0x1 << 7) | (startAddr & 0x1F) | ((readBytes & 0x03) << 5);
+
+  unsigned char spiTxBytes[bytes + 1];
+  unsigned char rxBuf[bytes + 1];
+
+  spiTxBytes[0] = instrByte;
+  memset(&spiTxBytes[1], 0, bytes);
+  memset(rxBytes, 0, sizeof(rxBuf));
+
+  if (MCP2210_SpiDataTransfer(handle, sizeof(spiTxBytes), spiTxBytes, rxBuf, &spiSettings) < 0) {
+    fprintf(stderr, "ReadRegisters() failed\n");
+    return false;
+  }
+  memcpy(rxBytes, &rxBuf[1], bytes);
   return true;
 }
