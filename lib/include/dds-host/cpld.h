@@ -35,6 +35,8 @@
 
 #define SRAM_PACKET_SIZE        7
 
+#define SRAM_DATA_SIZE          4
+
 // writes to a memory location on the SRAM
 bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData);
 
