@@ -144,10 +144,10 @@ bool DAC5687_WriteRegisters(hid_device *handle, DAC5687Address startAddr, unsign
 
   spiSettings.lastDataToCSDelay = 0x01;
   // CS_DAC is high when idle
-  spiSettings.idleCSValue = 0x0001;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0002;
 
   // construct the instruction cycle byte
   unsigned int writeBytes = bytes - 1;
@@ -279,10 +279,10 @@ bool DAC5687_ReadRegisters(hid_device *handle, DAC5687Address startAddr, unsigne
   spiSettings.lastDataToCSDelay = 0x01;
 
   // CS_DAC is high when idle
-  spiSettings.idleCSValue = 0x0001;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0002;
   
   // construct the instruction cycle byte
   unsigned char readBytes = bytes - 1;
