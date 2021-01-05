@@ -63,10 +63,29 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
 
   spiSettings.lastDataToCSDelay = 0x01;
   // CS_DAC is high when idle
-  spiSettings.idleCSValue = 0x0001;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0002;
+
+  MCP2210ChipSettings chipSettings = {0};
+
+  if (MCP2210_ReadChipSettings(handle, &chipSettings, true) < 0) {
+    fprintf(stderr, "WriteSRAMAddress()->ReadChipSettings() failed\n");
+    return false;
+  }
+
+  chipSettings.gp0Designation = CS;
+  chipSettings.gp1Designation = GPIO;
+  chipSettings.gp5Designation = DF;
+
+  chipSettings.defaultGPIODirection = 0x0000;
+  chipSettings.defaultGPIOValue = 0xFFFF;
+
+  if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
+    fprintf(stderr, "WriteSRAMAddress()->WriteChipSettings() failed\n");
+    return false;
+  }
   
   // construct the instruction cycle byte
   unsigned char instrByte = (addr & 0x1F);
@@ -162,7 +181,7 @@ bool DAC5687_ReadRegister(hid_device *handle, DAC5687Address addr, unsigned char
   // get current SPI settings
   MCP2210SPITransferSettings spiSettings = {0};
   if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
-    fprintf(stderr, "ReadRegister()->ReadSpiSettings() failed\n");
+    fprintf(stderr, "WriteRegister()->ReadSpiSettings() failed\n");
     return false;
   }
 
@@ -176,12 +195,30 @@ bool DAC5687_ReadRegister(hid_device *handle, DAC5687Address addr, unsigned char
   spiSettings.dataToDataDelay = 0x00;
 
   spiSettings.lastDataToCSDelay = 0x01;
-
   // CS_DAC is high when idle
-  spiSettings.idleCSValue = 0x0001;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0002;
+
+  MCP2210ChipSettings chipSettings = {0};
+
+  if (MCP2210_ReadChipSettings(handle, &chipSettings, true) < 0) {
+    fprintf(stderr, "WriteSRAMAddress()->ReadChipSettings() failed\n");
+    return false;
+  }
+
+  chipSettings.gp0Designation = CS;
+  chipSettings.gp1Designation = GPIO;
+  chipSettings.gp5Designation = DF;
+
+  chipSettings.defaultGPIODirection = 0x0000;
+  chipSettings.defaultGPIOValue = 0xFFFF;
+
+  if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
+    fprintf(stderr, "WriteSRAMAddress()->WriteChipSettings() failed\n");
+    return false;
+  }
   
   // construct the instruction cycle byte
   unsigned char instrByte = (0x1 << 7) | (addr & 0x1F);
