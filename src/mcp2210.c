@@ -30,6 +30,7 @@
 #include <string.h>   // for strlen(), memset()
 #include <stdio.h>    // for fprintf(), stderr
 #include <stdbool.h>  // for bool type and true/false macros
+#include <unistd.h>   // for usleep()
 
 // HIDAPI
 #include "hidapi/hidapi.h"
@@ -37,203 +38,262 @@
 // MCP2210
 #include "dds-host/mcp2210.h"
 
-// performs a generic write/read operation. Returns false on failure.
-// Stores the responses from the MCP2210 in 'response'.
-static bool MCP2210_GenericWriteRead(hid_device *handle, 
-                                      MCP2210Command cmd,
-                                      MCP2210SubCommand subCmd,
-                                      MCP2210GenericPacket *data,
-                                      MCP2210GenericPacket *response) {
-  data->__data__[0] = cmd;
-  if (subCmd != None && (cmd == SetNVRAMSettings || cmd == GetNVRAMSettings)) {
-    data->__data__[1] = subCmd;
+static int MCP2210_GenericWriteRead(hid_device *handle, uint8_t *txBuf, uint8_t *rxBuf) {
+  if (handle == NULL) {
+    fprintf(stderr, "GenericWriteRead()-> handle can't be null\n");
+    return -1;
   }
 
-  // write the packet
-  int res = hid_write(handle, data->__data__, sizeof(data->__data__));
-
-  if (res == -1) {
-    fprintf(stderr, "hid_write failed\n");
-    return false;
+  if (txBuf == NULL) {
+    fprintf(stderr, "GenericWriteRead()-> txBuf can't be null\n");
+    return -1;
   }
 
-  // read the response 
-  res = hid_read(handle, response->__data__, sizeof(response->__data__));
-
-  if (res == -1) {
-    fprintf(stderr, "hid_read failed\n");
-    return false;
+  if (rxBuf == NULL) {
+    fprintf(stderr, "GenericWriteRead()-> rxBuf can't be null\n");
+    return -1;
   }
-  return true;
+
+  int res = hid_write(handle, txBuf, MCP2210_REPORT_LEN);
+
+  if (res < 0) {
+    fprintf(stderr, "GenericWriteRead()->hid_write() failed\n");
+    return -1;
+  }
+
+  res = hid_read(handle, rxBuf, MCP2210_REPORT_LEN);
+
+  if (res < 0) {
+    fprintf(stderr, "GenericWriteRead()->hid_read() failed\n");
+    return -1;
+  }
+
+  // return the error code
+  return rxBuf[1];
 }
 
-bool MCP2210_Init(hid_device **handle) {
-  if (handle == NULL) {
-    fprintf(stderr, "handle must not be null\n");
-    return false;
-  }
-
+hid_device * MCP2210_Init() {
   // initialize the underlying HID interface
   int res = hid_init();
 
-  if (res == -1) {
+  if (res < 0) {
     fprintf(stderr, "Failed to initialize HIDAPI\n");
     return false;
   }
 
   // attempt to open the attached MCP2210
-  *handle = hid_open(VID, PID, NULL);
+  hid_device *handle = hid_open(VID, PID, NULL);
 
-  if (*handle == NULL) {
+  if (handle == NULL) {
     fprintf(stderr, "Failed to open specified device %#x:%#x\n", VID, PID);
-    return false;
+    return NULL;
   }
-
-  return true;
+  return handle;
 }
 
-bool MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettings *newSettings, bool vm) {
+int MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettings *newSettings, bool vm) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  MCP2210GenericResponse response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  bool result;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
   // determine if we're configuring power-up settings or current settings
   if (vm) {
-    result = MCP2210_GenericWriteRead(handle, SetCurrentSpiSettings, None, (MCP2210GenericPacket *)newSettings, (MCP2210GenericPacket *)&response);
+    txBuf[0] = SetCurrentSpiSettings;
+    txBuf[1] = 0x00;
   } else {
-    result = MCP2210_GenericWriteRead(handle, SetNVRAMSettings, SpiSettings, (MCP2210GenericPacket *)newSettings, (MCP2210GenericPacket *)&response);
+    txBuf[0] = SetNVRAMSettings;
+    txBuf[1] = SpiSettings;
   }
 
-  if (!result) {
-    fprintf(stderr, "SPI settings write failed\n");
-    return false;
-  }
+  txBuf[2] = txBuf[3] = 0x00;
 
-  switch (response.status) {
-    case 0xFB:
-      fprintf(stderr, "Conditional access set\n");
-      return false;
-    case 0xF8:
-      printf("USB transfer in progress\n");
-      return false;
-    case 0x00:
-      printf("Command completed successfully\n");
-      return true;
-    default:
-      fprintf(stderr, "unknown response\n");
-      return false;
-  }
+  txBuf[4] = (uint8_t) (newSettings->bitRate & 0xFF);
+  txBuf[5] = (uint8_t) ((newSettings->bitRate & 0xFF00) >> 8);
+  txBuf[6] = (uint8_t) ((newSettings->bitRate & 0xFF0000) >> 16);
+  txBuf[7] = (uint8_t) ((newSettings->bitRate & 0xFF000000) >> 24);
+
+  txBuf[8] = (uint8_t) (newSettings->idleCSValue & 0xFF);
+  txBuf[9] = (uint8_t) ((newSettings->idleCSValue & 0xFF00) >> 8);
+
+  txBuf[10] = (uint8_t) (newSettings->activeCSValue & 0xFF);
+  txBuf[11] = (uint8_t) ((newSettings->activeCSValue & 0xFF00) >> 8);
+
+  txBuf[12] = (uint8_t) (newSettings->csToDataDelay & 0xFF);
+  txBuf[13] = (uint8_t) ((newSettings->csToDataDelay & 0xFF00) >> 8);
+
+  txBuf[14] = (uint8_t) (newSettings->lastDataToCSDelay & 0xFF);
+  txBuf[15] = (uint8_t) ((newSettings->lastDataToCSDelay & 0xFF00) >> 8);
+
+  txBuf[16] = (uint8_t) (newSettings->dataToDataDelay & 0xFF);
+  txBuf[17] = (uint8_t) ((newSettings->dataToDataDelay & 0xFF00) >> 8);
+
+  txBuf[18] = (uint8_t) (newSettings->bytesPerTransaction & 0xFF);
+  txBuf[19] = (uint8_t) ((newSettings->bytesPerTransaction & 0xFF00) >> 8);
+
+  txBuf[20] = newSettings->SPIMode;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *currentSettings, bool vm) {
+int MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *currentSettings, bool vm) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  bool result;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
   if (vm) {
-    result = MCP2210_GenericWriteRead(handle, GetCurrentSpiSettings, None, &data, (MCP2210GenericPacket *)currentSettings);
+    txBuf[0] = GetCurrentSpiSettings;
+    txBuf[1] = 0x00;
   } else {
-    result = MCP2210_GenericWriteRead(handle, GetNVRAMSettings, SpiSettings, &data, (MCP2210GenericPacket *)currentSettings);
+    txBuf[0] = GetNVRAMSettings;
+    txBuf[1] = SpiSettings;
   }
 
-  if (!result) {
-    fprintf(stderr, "SPI settings read failed\n");
-    return false;
-  }
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 
-  // TODO: Process our response to make sure nothing goofy happened
-  return true;
+  if (res == 0x00) {
+    currentSettings->bitRate = rxBuf[4] | (rxBuf[5] << 8) | (rxBuf[6] << 16) | (rxBuf[7] << 24);
+    currentSettings->idleCSValue = rxBuf[8] | (rxBuf[9] << 8);
+    currentSettings->activeCSValue = rxBuf[10] | (rxBuf[11] << 8);
+    currentSettings->csToDataDelay = rxBuf[12] | (rxBuf[13] << 8);
+    currentSettings->lastDataToCSDelay = rxBuf[14] | (rxBuf[15] << 8);
+    currentSettings->dataToDataDelay = rxBuf[16] | (rxBuf[17] << 8);
+    currentSettings->bytesPerTransaction = rxBuf[18] | (rxBuf[19] << 8);
+    currentSettings->SPIMode = rxBuf[20];
+  }
+  return res;
 }
 
-bool MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings *newSettings, bool vm) {
+int MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings *newSettings, bool vm) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (newSettings == NULL) {
     fprintf(stderr, "newSettings must not be null\n");
-    return false;
+    return -1;
   }
 
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  bool result;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
   if (vm) {
-    result = MCP2210_GenericWriteRead(handle, SetCurrentChipSettings, None, (MCP2210GenericPacket *)newSettings, &response);
+    txBuf[0] = SetCurrentChipSettings;
+    txBuf[1] = 0x00;
   } else {
-    result = MCP2210_GenericWriteRead(handle, SetNVRAMSettings, ChipSettings, (MCP2210GenericPacket *)newSettings, &response);
+    txBuf[0] = SetNVRAMSettings;
+    txBuf[1] = ChipSettings;
   }
 
-  if (!result) {
-    fprintf(stderr, "Chip settings write failed\n");
-    return false;
-  }
+  txBuf[2] = txBuf[3] = 0;
 
-  // TODO: process our response and do something interesting if necessary
-  return true;
+  txBuf[4] = newSettings->gp0Designation;
+  txBuf[5] = newSettings->gp1Designation;
+  txBuf[6] = newSettings->gp2Designation;
+  txBuf[7] = newSettings->gp3Designation;
+  txBuf[8] = newSettings->gp4Designation;
+  txBuf[9] = newSettings->gp5Designation;
+  txBuf[10] = newSettings->gp6Designation;
+  txBuf[11] = newSettings->gp7Designation;
+  txBuf[12] = newSettings->gp8Designation;
+
+  txBuf[13] = newSettings->defaultGPIOValue & 0xFF;
+  txBuf[14] = (uint8_t)((newSettings->defaultGPIOValue & 0xFF00) >> 8);
+
+  txBuf[15] = newSettings->defaultGPIODirection & 0xFF;
+  txBuf[16] = (uint8_t)((newSettings->defaultGPIODirection & 0xFF00) >> 8);
+
+  txBuf[17] = newSettings->chipSettings;
+
+  txBuf[18] = newSettings->chipAccessControl;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSettings, bool vm) {
+int MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSettings, bool vm) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (currentSettings == NULL) {
-    fprintf(stderr, "newSettings must not be null\n");
-    return false;
+    fprintf(stderr, "currentSettings must not be null\n");
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  bool result;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
   if (vm) {
-    result = MCP2210_GenericWriteRead(handle, GetCurrentChipSettings, None, &data, (MCP2210GenericPacket *)currentSettings);
+    txBuf[0] = GetCurrentChipSettings;
   } else {
-    result = MCP2210_GenericWriteRead(handle, GetNVRAMSettings, ChipSettings, &data, (MCP2210GenericPacket *)currentSettings);
+    txBuf[0] = GetNVRAMSettings;
+    txBuf[1] = ChipSettings;
   }
 
-  if (!result) {
-    fprintf(stderr, "Chip settings read failed\n");
-    return false;
-  }
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 
-  // TODO: process our response and do something interesting if necessary
-  return true;
+  if (res == 0x00) {
+    currentSettings->gp0Designation = rxBuf[4];
+    currentSettings->gp1Designation = rxBuf[5];
+    currentSettings->gp2Designation = rxBuf[6];
+    currentSettings->gp3Designation = rxBuf[7];
+    currentSettings->gp4Designation = rxBuf[8];
+    currentSettings->gp5Designation = rxBuf[9];
+    currentSettings->gp6Designation = rxBuf[10];
+    currentSettings->gp7Designation = rxBuf[11];
+    currentSettings->gp8Designation = rxBuf[12];
+
+    currentSettings->defaultGPIOValue = rxBuf[13] | (rxBuf[14] << 8);
+    currentSettings->defaultGPIODirection = rxBuf[15] | (rxBuf[16] << 8);
+
+    currentSettings->chipSettings = rxBuf[17];
+
+    currentSettings->chipAccessControl = rxBuf[18];
+  }
+  return res;
 }
 
-bool MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass) {
+int MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  memcpy(&data.__data__[4], &pass, sizeof(pass));
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  bool result = MCP2210_GenericWriteRead(handle, SendPassword, None, &data, &response);
+  txBuf[0] = SendPassword;
 
-  if (!result) {
-    fprintf(stderr, "Send access password failed\n");
-    return false;
-  }
+  memcpy(&txBuf[4], &pass, sizeof(pass));
 
-  // TODO: Process our response to make sure the password was accepted
-  return true;
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size_t nameLen) {
+int MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size_t nameLen) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return false;
@@ -241,69 +301,69 @@ bool MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size
 
   if (newName == NULL) {
     fprintf(stderr, "newName must not be bull\n");
-    return false;
+    return -1;
   }
 
   if (nameLen > MAX_MAN_STR_LEN) {
     fprintf(stderr, "manufacturer name must be less than or equal to 29 characters\n");
-    return false;
+    return -1;
   }
 
-  // TODO: define a struct we can use here to make this process easier
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = SetNVRAMSettings;
+  txBuf[1] = ManufacturerName;
 
   // truncation here is fine, we know nameLen will always be the right length
-  data.__data__[4] = nameLen * 2 + 2;
+  txBuf[4] = nameLen * 2 + 2;
 
   // this is the string descriptor ID, must always be 0x03
-  data.__data__[5] = 0x03;
+  txBuf[5] = 0x03;
 
   // process the new name
   int i;
   for (i = 0; i < nameLen * 2; i += 2) {
-    data.__data__[i] = newName[i / 2];
-  }
-  
-  if (!MCP2210_GenericWriteRead(handle, SetNVRAMSettings, ManufacturerName, &data, &response)) {
-    fprintf(stderr, "Failed to set manufacturer name\n");
-    return false;
+    txBuf[i + 6] = newName[i / 2];
   }
 
-  // TODO: Process response to check if we need to do anything
-  return true;
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadManufacturerName(hid_device *handle, char currentName[30]) {
+int MCP2210_ReadManufacturerName(hid_device *handle, char currentName[30]) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (currentName == NULL) {
     fprintf(stderr, "currentName must not be null\n");
-    return false;
+    return -1;
   }
 
-  // TODO: define a struct we can use here to make this process easier
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
-  
-  if (!MCP2210_GenericWriteRead(handle, SetNVRAMSettings, ManufacturerName, &data, &response)) {
-    fprintf(stderr, "Failed to read manufacturer name\n");
-    return false;
-  }
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  // TODO: Process response to check if we need to do anything
-  // get the current name out
-  int i;
-  for (i = 0; i < response.__data__[4]; i += 2) {
-    currentName[i / 2] = response.__data__[i];
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetNVRAMSettings;
+  txBuf[1] = ManufacturerName;
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  if (res == 0x00) {
+    int i;
+    for (i = 0; i < rxBuf[4]; i += 2) {
+      currentName[i / 2] = rxBuf[i];
+    }
+    currentName[rxBuf[4] / 2] = '\0';
   }
-  return true;
+  return res;
 }
 
-bool MCP2210_WriteProductName(hid_device *handle, const char *newName, size_t nameLen) {
+int MCP2210_WriteProductName(hid_device *handle, const char *newName, size_t nameLen) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return false;
@@ -311,209 +371,222 @@ bool MCP2210_WriteProductName(hid_device *handle, const char *newName, size_t na
 
   if (newName == NULL) {
     fprintf(stderr, "newName must not be bull\n");
-    return false;
+    return -1;
   }
 
   if (nameLen > MAX_MAN_STR_LEN) {
     fprintf(stderr, "product name must be less than or equal to 29 characters\n");
-    return false;
+    return -1;
   }
 
-  // TODO: define a struct we can use here to make this process easier
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = SetNVRAMSettings;
+  txBuf[1] = ProductName;
 
   // truncation here is fine, we know nameLen will always be the right length
-  data.__data__[4] = nameLen * 2 + 2;
+  txBuf[4] = nameLen * 2 + 2;
 
   // this is the string descriptor ID, must always be 0x03
-  data.__data__[5] = 0x03;
+  txBuf[5] = 0x03;
 
   // process the new name
   int i;
   for (i = 0; i < nameLen * 2; i += 2) {
-    data.__data__[i] = newName[i / 2];
-  }
-  
-  if (!MCP2210_GenericWriteRead(handle, SetNVRAMSettings, ProductName, &data, &response)) {
-    fprintf(stderr, "Failed to set manufacturer name\n");
-    return false;
+    txBuf[i + 6] = newName[i / 2];
   }
 
-  // TODO: Process response to check if we need to do anything
-  return true;
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
-  if (handle == NULL) {
+int MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
+    if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (currentName == NULL) {
-    fprintf(stderr, "newName must not be bull\n");
-    return false;
+    fprintf(stderr, "currentName must not be null\n");
+    return -1;
   }
 
-  // TODO: define a struct we can use here to make this process easier
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  
-  if (!MCP2210_GenericWriteRead(handle, GetNVRAMSettings, ProductName, &data, &response)) {
-    fprintf(stderr, "Failed to set manufacturer name\n");
-    return false;
-  }
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  // TODO: Process response to check if we need to do anything
-  // get the current name out
-  int i;
-  for (i = 0; i < response.__data__[4]; i += 2) {
-    currentName[i / 2] = response.__data__[i];
+  txBuf[0] = GetNVRAMSettings;
+  txBuf[1] = ProductName;
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  if (res == 0x00) {
+    int i;
+    for (i = 0; i < rxBuf[4]; i += 2) {
+      currentName[i / 2] = rxBuf[i];
+    }
+    currentName[rxBuf[4] / 2] = '\0';
   }
-  return true;
+  return res;
 }
 
-bool MCP2210_WriteGPIOValues(hid_device *handle, const MCP2210GPIOPinValSettings *newSettings) {
+int MCP2210_WriteGPIOValues(hid_device *handle, uint16_t newGPIOValues) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  if (newSettings == NULL) {
-    fprintf(stderr, "newSettings must not be null\n");
-    return false;
-  }
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  MCP2210GenericPacket response = {0};
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  if (!MCP2210_GenericWriteRead(handle, SetCurrentGPIOPinVal, None, (MCP2210GenericPacket *)newSettings, &response)) {
-    fprintf(stderr, "Write GPIO pin values failed\n");
-    return false;
-  }
+  txBuf[0] = GetCurrentGPIOPinVal;
 
-  // TODO: process the response to make sure it all worked
-  return true;
+  txBuf[4] = (uint8_t) (newGPIOValues & 0xFF);
+  txBuf[5] = (uint8_t) ((newGPIOValues & 0xFF00) >> 8);
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadGPIOValues(hid_device *handle, MCP2210GPIOPinValSettings *currentSettings) {
+int MCP2210_ReadGPIOValues(hid_device *handle, uint16_t *currentGPIOValues) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  if (currentSettings == NULL) {
-    fprintf(stderr, "currentSettings must not be null\n");
-    return false;
+  if (currentGPIOValues == NULL) {
+    fprintf(stderr, "currentGPIOValues must not be null\n");
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  if (!MCP2210_GenericWriteRead(handle, GetCurrentGPIOPinVal, None, &data, (MCP2210GenericPacket *)currentSettings)) {
-    fprintf(stderr, "Read gpio pin values failed\n");
-    return false;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetCurrentGPIOPinVal;
+
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+
+  if (res == 0x00) {
+    *currentGPIOValues = rxBuf[4] | (rxBuf[5] << 8);
   }
-
-  // TODO: process the response to make sure everything worked
-  return true;
+  return res;
 }
 
-bool MCP2210_WriteGPIODirections(hid_device *handle, const MCP2210GPIOPinDirSettings *newSettings) {
+int MCP2210_WriteGPIODirections(hid_device *handle, uint16_t newGPIODirections) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  if (newSettings == NULL) {
-    fprintf(stderr, "newSettings must not be null\n");
-    return false;
-  }
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  MCP2210GenericPacket response = {0};
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  if (!MCP2210_GenericWriteRead(handle, SetCurrentGPIOPinDir, None, (MCP2210GenericPacket *)newSettings, &response)) {
-    fprintf(stderr, "Write GPIO pin directions failed\n");
-    return false;
-  }
+  txBuf[0] = SetCurrentGPIOPinDir;
 
-  // TODO: process the response to make sure it all worked
-  return true;
+  txBuf[4] = (uint8_t) (newGPIODirections & 0xFF);
+  txBuf[5] = (uint8_t) ((newGPIODirections & 0xFF00) >> 8);
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadGPIODirections(hid_device *handle, MCP2210GPIOPinDirSettings *currentSettings) {
+int MCP2210_ReadGPIODirections(hid_device *handle, uint16_t *currentGPIODirections) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
-  if (currentSettings == NULL) {
-    fprintf(stderr, "currentSettings must not be null\n");
-    return false;
+  if (currentGPIODirections == NULL) {
+    fprintf(stderr, "currentGPIODirections must not be null\n");
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  if (!MCP2210_GenericWriteRead(handle, GetCurrentGPIOPinDir, None, &data, (MCP2210GenericPacket *)currentSettings)) {
-    fprintf(stderr, "Read gpio pin directions failed\n");
-    return false;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetCurrentGPIOPinVal;
+
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+
+  if (res == 0x00) {
+    *currentGPIODirections = rxBuf[4] | (rxBuf[5] << 8);
   }
-
-  // TODO: process the response to make sure everything worked
-  return true;
+  return res;
 }
 
-bool MCP2210_WriteEEPROM(hid_device *handle, unsigned char addr, unsigned char byte) {
+int MCP2210_WriteEEPROM(hid_device *handle, unsigned char addr, unsigned char byte) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
   }
 
   if (addr > EEPROM_MAX_ADDR) {
     fprintf(stderr, "addr is out of range\n");
-    return false;
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  data.__data__[1] = addr;
-  data.__data__[2] = byte;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  if (!MCP2210_GenericWriteRead(handle, WriteEEPROM, None, &data, &response)) {
-    fprintf(stderr, "Write to EEPROM failed\n");
-    return false;
-  }
+  txBuf[0] = WriteEEPROM;
 
-  // TODO: process response to make sure nothing went wrong
-  return true;
+  txBuf[1] = addr;
+  txBuf[2] = byte;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 }
 
-bool MCP2210_ReadEEPROM(hid_device *handle, unsigned char addr, unsigned char *byte) {
+int MCP2210_ReadEEPROM(hid_device *handle, unsigned char addr, unsigned char *byte) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
-    return false;
+    return -1;
+  }
+
+  if (addr > EEPROM_MAX_ADDR) {
+    fprintf(stderr, "addr is out of range\n");
+    return -1;
   }
 
   if (byte == NULL) {
-    fprintf(stderr, "output byte must not be null\n");
-    return false;
+    fprintf(stderr, "byte can't be null\n");
+    return -1;
   }
 
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  data.__data__[1] = addr;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  if (!MCP2210_GenericWriteRead(handle, ReadEEPROM, None, &data, &response)) {
-    fprintf(stderr, "read from EEPROM failed\n");
-    return false;
+  txBuf[0] = ReadEEPROM;
+
+  txBuf[1] = addr;
+
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+
+  if (res == 0x00) {
+    *byte = rxBuf[3];
   }
-
-  // TODO: process the response to make sure nothing went wrong
-  return true;
+  return res;
 }
 
-bool MCP2210_ReadInterruptCount(hid_device *handle, unsigned int *interrupts, bool reset) {
+int MCP2210_ReadInterruptCount(hid_device *handle, unsigned int *interrupts, bool reset) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return false;
@@ -524,21 +597,23 @@ bool MCP2210_ReadInterruptCount(hid_device *handle, unsigned int *interrupts, bo
     return false;
   }
 
-  MCP2210GenericPacket data = {0};
-  MCP2210GenericPacket response = {0};
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetCurrentInterruptCount;
   if (reset) {
-    data.__data__[1] = 0x01;
+    txBuf[1] = 0x01;
   }
 
-  if (!MCP2210_GenericWriteRead(handle, GetCurrentInterruptCount, None, &data, &response)) {
-    fprintf(stderr, "read interrupt count failed\n");
-    return false;
-  }
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 
-  // TODO: process the response to make sure nothing went wrong
-  *interrupts = response.__data__[4] | (((unsigned int) response.__data__[5]) << 8);
-  return true;
+  if (res == 0x00) {
+    *interrupts = rxBuf[4] | (rxBuf[5] << 8);
+  }
+  return res;
 }
 
 int MCP2210_SpiDataTransfer(hid_device *handle,
@@ -572,12 +647,11 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
   }
 
   // make sure the transaction is the right length
-  settings->bytes_per_transaction_low = txBytes;
-  settings->bytes_per_transaction_high = (txBytes >> 8);
+  settings->bytesPerTransaction = txBytes;
   printf("SPI bytes for this transfer: %d\n", txBytes);
 
   // write the settings we were given
-  if (!MCP2210_WriteSpiSettings(handle, settings, true)) {
+  if (MCP2210_WriteSpiSettings(handle, settings, true) != 0x00) {
     fprintf(stderr, "Failed to write settings before SPI transfer\n");
     return -1;
   }
@@ -588,67 +662,111 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
 
   unsigned int bytesLeft = txBytes;
   unsigned int rxBytes = 0;
-  MCP2210SPIDataTransfer dataTransfer = {0};
-  MCP2210SPIDataTransferResponse dataTransferResponse = {0};
+  
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
 
-  // represents the number of times we want to try a write until
-  // we assume it's failed
-  unsigned int const kTimeout = 1500;
-
-  // running total of how many times we've tried a write
-  unsigned int tries = 0;
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
   // start writing
-  do {
+  // each loop is a new attempt to transfer a packet
+  txBuf[0] = SpiDataTransfer;
+  int count = 0;
+  do { 
     if (bytesLeft >= 60) {
-      dataTransfer.bytes = 60;
-      memcpy(&dataTransfer.spi_data, (txData + txBytes - bytesLeft), 60);
+      txBuf[1] = 60;
+      memcpy(&txBuf[4], (txData + txBytes - bytesLeft), 60);
     } else {
-      dataTransfer.bytes = bytesLeft;
-      memcpy(&dataTransfer.spi_data, (txData + txBytes - bytesLeft), bytesLeft);
+      txBuf[1] = bytesLeft;
+      memcpy(&txBuf[4], (txData + txBytes - bytesLeft), bytesLeft);
     }
 
-    if (!MCP2210_GenericWriteRead(handle, SpiDataTransfer, None, (MCP2210GenericPacket *)&dataTransfer, (MCP2210GenericPacket *)&dataTransferResponse)) {
+    int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+
+    if (res == 0x00 && rxBuf[3] == 0x10) {
+      fprintf(stderr, "SPI transfer successful\n");
+      bytesLeft -= txBuf[1];
+    } else if (res == 0xF7) {
+      fprintf(stderr, "SPI Bus not available\n");
+      return -1;
+    } else if (res == 0xF8) {
+      fprintf(stderr, "Cannot accept SPI data\n");
       return -1;
     }
-
-    switch(dataTransferResponse.status) {
-      case 0x00:
-        // success
-        switch (dataTransferResponse.engine_status) {
-          case 0x20:
-            // no data to receive
-            break;
-          case 0x30:
-            // received data available
-            // process the received bytes
-          case 0x10:
-            // finished
-            rxBytes += dataTransferResponse.bytes;
-            memcpy((&rxData + rxBytes), dataTransferResponse.spi_data, dataTransferResponse.bytes);
-            break;
-        }
-        // update the bytes left only on success
-        bytesLeft -= dataTransfer.bytes;
-        break;
-      case 0xF7:
-        // SPI data not accepted
-        printf("SPI data not accepted. External master has control of bus.\n");
-        break;
-      case 0xF8:
-        // transfer in progress
-        printf("Transfer still in progress\n");
-        break;
-      default:
-        fprintf(stderr, "unknown SPI response\n");
-        break;
+    
+    if (rxBuf[3] == 0x30 || rxBuf[3] == 0x10) {
+      fprintf(stderr, "received data available\n");
+      memcpy(&rxData[rxBytes], &rxBuf[4], rxBuf[2]);
+      rxBytes += rxBuf[2];
     }
-    tries++;
-  } while(bytesLeft && tries < kTimeout);
+    count++;
+  } while (count < 1000 && (rxBuf[3] == 0x30 || rxBuf[3] == 0x20));
 
-  if (tries == kTimeout) {
-    fprintf(stderr, "spi transfer timed out\n");
+  if (count == 1000) {
+    fprintf(stderr, "SPI transfer timed out\n");
     return -1;
   }
   return rxBytes;
+}
+
+int MCP2210_RequestSpiBusRelease(hid_device *handle) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = ReleaseSpiBus;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+}
+
+int MCP2210_CancelSpiDataTransfer(hid_device *handle) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = CancelSpiDataTransfer;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+}
+
+int MCP2210_ReadChipStatus(hid_device *handle) {
+    if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetChipStatus;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+}
+
+void MCP2210_Close(hid_device *handle) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return;
+  }
+
+  hid_close(handle);
+  hid_exit();
 }
