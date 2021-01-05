@@ -22,5 +22,44 @@
  * SOFTWARE.
  */
 
+#include <stdio.h>      // for printf(), fprintf()
+#include <stdbool.h>    // for bool type and true/false macros
+#include <stdint.h>     // for fixed-width integer types
+#include <string.h>     // for memset(), memcpy()
+
+// HIDAPI
+#include <hidapi/hidapi.h>
+
+// MCP2210
 #include "dds-host/mcp2210.h"
 
+// CPLD
+#include "dds-host/cpld.h"
+
+bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle can't be null\n");
+    return false;
+  }
+
+  if (addr > SRAM_MAX_ADDRESS) {
+    fprintf(stderr, "addr is out of range\n");
+    return false;
+  }
+
+  uint8_t txBytes[SRAM_PACKET_SIZE];
+  uint8_t rxBytes[SRAM_PACKET_SIZE];
+
+  memset(txBytes, 0, sizeof(txBytes));
+  memset(rxBytes, 0, sizeof(rxBytes));
+
+  txBytes[0] = (uint8_t)((addr & 0x02) << 6);
+  txBytes[1] = (uint8_t)((addr & 0x1FC) >> 2);
+  txBytes[2] = (uint8_t)((addr & 0xFE00) >> 10);
+  memcpy(&txData[3], &txData, sizeof(txData));
+
+
+
+  if (MCP2210_SpiDataTransfer(handle, SRAM_PACKET_SIZE, txBytes, rxBytes, NULL));
+  return true;
+}

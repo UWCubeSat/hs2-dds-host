@@ -21,3 +21,22 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
+
+#include <stdbool.h>
+
+// HIDAPI
+#include "hidapi/hidapi.h"
+
+// MCP2210
+#include "dds-host/mcp2210.h"
+
+// 2^17 - 1
+#define SRAM_MAX_ADDRESS        131071
+
+#define SRAM_PACKET_SIZE        7
+
+// writes to a memory location on the SRAM
+bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData);
+
+// reads from a memory location on the SRAM
+bool CPLD_ReadSRAMAddress(hid_device *handle, unsigned int addr, unsigned int *rxData);
