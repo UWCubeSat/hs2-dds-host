@@ -648,7 +648,6 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
 
   // make sure the transaction is the right length
   settings->bytesPerTransaction = txBytes;
-  printf("SPI bytes for this transfer: %d\n", txBytes);
 
   // write the settings we were given
   if (MCP2210_WriteSpiSettings(handle, settings, true) != 0x00) {
@@ -685,18 +684,14 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
     int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
 
     if (res == 0x00 && rxBuf[3] == 0x10) {
-      fprintf(stderr, "SPI transfer successful\n");
       bytesLeft -= txBuf[1];
     } else if (res == 0xF7) {
-      fprintf(stderr, "SPI Bus not available\n");
       return -1;
     } else if (res == 0xF8) {
-      fprintf(stderr, "Cannot accept SPI data\n");
       return -1;
     }
     
     if (rxBuf[3] == 0x30 || rxBuf[3] == 0x10) {
-      fprintf(stderr, "received data available\n");
       memcpy(&rxData[rxBytes], &rxBuf[4], rxBuf[2]);
       rxBytes += rxBuf[2];
     }

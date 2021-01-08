@@ -26,6 +26,7 @@
 #define DAC5687_H_
 
 #include "dds-host/mcp2210.h"
+#include "dds-host/util/csv.h"
 
 // DAC register addresses
 typedef enum dac5687_reg_t {
@@ -58,6 +59,8 @@ typedef enum dac5687_reg_t {
   ATEST = 0x1B,
   DACTest = 0x1C,
 } DAC5687Address;
+
+bool DAC5687_Configure(CSVFile *file, hid_device *handle);
 
 bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned char txByte);
 

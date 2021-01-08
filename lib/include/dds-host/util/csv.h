@@ -38,7 +38,7 @@ typedef struct csv_file_st {
 
 // opens a CSV file to be used with other functions
 // in this interface
-CSVFile * CSV_Open();
+CSVFile * CSV_Open(const char * fileName);
 
 // releases resources associated with input file
 bool CSV_Close(CSVFile *file);

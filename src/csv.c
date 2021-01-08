@@ -45,7 +45,7 @@ CSVFile * CSV_Open(const char * fileName) {
     return NULL;
   }
 
-  CSVFile * file = malloc(sizeof(CSVFile));
+  CSVFile * file = (CSVFile *)malloc(sizeof(CSVFile));
 
   if (file == NULL) {
     fprintf(stderr, "Failed to allocate CSVFile\n");
@@ -103,20 +103,20 @@ const char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned lon
       rowIdx++;
     }
   }
-  printf("Row index: %lld\n", rowIdx);
 
   // file position indicator should be at the right row
   // consume the entire line into buf, then get the field at that position
   const unsigned int kBufLen = 1024;
-  char buf[kBufLen];
+  char buf[kBufLen+1];
   memset(buf, '\0', kBufLen);
 
   fgets(buf, sizeof(buf), file->fp);
-  char * tok;
+  const char * tok;
   for (tok = strtok(buf, ","); tok && *tok; tok = strtok(NULL, ",\n")) {
     if (!--col) {
+      const char * tmp = strdup(tok);
       fseek(file->fp, 0, SEEK_SET);
-      return tok;
+      return tmp;
     }
   }
   fseek(file->fp, 0, SEEK_SET);
