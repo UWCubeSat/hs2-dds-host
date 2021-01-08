@@ -26,34 +26,25 @@
 #define CSV_H_
 
 #include <stdio.h>
+#include <stdbool.h>
+
+#define MAX_CELL_LENGTH       1024
 
 typedef struct csv_file_st {
-  int numRows;
-  int numCols;
+  unsigned long long numRows;
+  unsigned long long numCols;
   FILE *fp;
 } CSVFile;
 
-typedef struct csv_file_element_st {
-  int row;
-  int col;
-  const char * cell;
-} CSVElement;
-
 // opens a CSV file to be used with other functions
 // in this interface
-CSVFile * CSVFileOpen();
+CSVFile * CSV_Open();
 
 // releases resources associated with input file
-void CSVFileClose(CSVFile *);
+bool CSV_Close(CSVFile *file);
 
 // reads a single element from the CSV. Returns
-// 0 if read is unsuccessful, 1 otherwise
-int CSVReadElement(const char *, int, int);
-
-// computes the number of rows in the csv
-static void CSVNumRows(CSVFile *);
-
-// computes the number of columns in the csv
-static void CSVNumCols(CSVFile *);
+// true if successful, false otherwise.
+const char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col);
 
 #endif  // CSV_H_
