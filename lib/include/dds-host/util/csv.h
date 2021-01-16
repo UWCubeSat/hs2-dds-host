@@ -45,6 +45,6 @@ bool CSV_Close(CSVFile *file);
 
 // reads a single element from the CSV. Returns
 // true if successful, false otherwise.
-const char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col);
+char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col);
 
 #endif  // CSV_H_

@@ -74,7 +74,7 @@ bool CSV_Close(CSVFile *file) {
   return true;
 }
 
-const char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col) {
+char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col) {
   if (file == NULL) {
     fprintf(stderr, "file can't be null\n");
     return NULL;
@@ -114,7 +114,7 @@ const char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned lon
   const char * tok;
   for (tok = strtok(buf, ","); tok && *tok; tok = strtok(NULL, ",\n")) {
     if (!--col) {
-      const char * tmp = strdup(tok);
+      char * tmp = strdup(tok);
       fseek(file->fp, 0, SEEK_SET);
       return tmp;
     }

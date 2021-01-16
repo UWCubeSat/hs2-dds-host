@@ -1,187 +1,176 @@
 /*
-* MIT License
-* 
-* Copyright (c) 2020 Eli Reed
-* 
-* Permission is hereby granted, free of charge, to any person obtaining a copy
-* of this software and associated documentation files (the "Software"), to deal
-* in the Software without restriction, including without limitation the rights
-* to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-* copies of the Software, and to permit persons to whom the Software is
-* furnished to do so, subject to the following conditions:
-* 
-* The above copyright notice and this permission notice shall be included in all
-* copies or substantial portions of the Software.
-* 
-* THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-* IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-* FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-* AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-* LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-* OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-* SOFTWARE.
-*/
+ * MIT License
+ * 
+ * Copyright (c) 2020 Eli Reed
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
 
 // C
-#include <stdint.h>   // for uint8_t
-#include <string.h>   // for memset()
-#include <stdio.h>    // for printf()
-#include <stdlib.h>   // for exit()
-#include <unistd.h>   // for getopt()
+#include <stdio.h>  // for printf()
+#include <stdbool.h>  // for bool type
+#include <stdlib.h> // for exit()
+#include <unistd.h> // for getopt()
+#include <string.h> // for memset()
 
 // HIDAPI
-#include "hidapi.h"
+#include "hidapi/hidapi.h"
 
 // project libraries
 #include "dds-host/dds-host.h"
-#include "dds-host/dds-util.h"
+#include "dds-host/mcp2210.h"
+#include "dds-host/dac5687.h"
+#include "dds-host/cpld.h"
+#include "dds-host/util/csv.h"
 
-int main(int argc, char **argv) {
-  int res;
-  int fDebug;
-  const char * data_file_name = NULL;
-  hid_device *handle;
+static void PrintUsage() {
+  fprintf(stderr, "Usage: ./bin/dds-host --dac-config <filename> --mcp-config <filename> --data <filename>\n");
+}
 
-  // extract our command line options
-  
+static bool CheckArgs(int argc, char *argv[]) {
+  // we expect the args: --dac-config <filename> --mcp2210-config <filename> --data <filename>
+  // TODO: make CLI more flexible
+  if (argc != 7) {
+    fprintf(stderr, "Not enough args: %d\n", argc);
+    return false;
+  }
 
-  res = dds_init(&handle);
+  if (strcmp(argv[1], "--dac-config") != 0) {
+    fprintf(stderr, "missing dac config file option\n");
+    return false;
+  }
 
-  if (res == -1) {
+  if (strcmp(argv[3], "--mcp-config") != 0) {
+    fprintf(stderr, "missing mcp config file option\n");
+    return false;
+  }
+
+  if (strcmp(argv[5], "--data") != 0) {
+    fprintf(stderr, "missing data file option\n");
+    return false;
+  }
+  return true;
+}
+
+static bool ConfigureDevices(hid_device *handle, char *dacFileName, char *mcpFileName) {
+  CSVFile *dacConfigFile = CSV_Open(dacFileName);
+  CSVFile *mcpConfigFile = CSV_Open(mcpFileName);
+
+  if (dacConfigFile == NULL) {
+    return false;
+  }
+
+  if (mcpConfigFile == NULL) {
+    return false;
+  }
+
+  // configure the DAC first
+  if (!DAC5687_Configure(dacConfigFile, handle)) {
+    CSV_Close(mcpConfigFile);
+    CSV_Close(dacConfigFile);
+    return false;
+  }
+
+  // TODO: use a config file
+  // configure MCP2210 Chip settings
+  MCP2210ChipSettings chipSettings = {0};
+  chipSettings.gp0Designation = CS;
+  chipSettings.gp1Designation = CS;
+  chipSettings.gp3Designation = DF;
+  // leave the rest of pins as GPIOs
+  chipSettings.chipSettings = 0x00;
+  chipSettings.defaultGPIODirection = 0x0000;
+  chipSettings.defaultGPIOValue = 0xFFFF;
+
+  if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
+    CSV_Close(mcpConfigFile);
+    CSV_Close(dacConfigFile);
+    return false;
+  }
+
+  // clean up
+  CSV_Close(mcpConfigFile);
+  CSV_Close(dacConfigFile);
+  return true;
+}
+
+int main(int argc, char *argv[]) {
+  if (!CheckArgs(argc, argv)) {
+    PrintUsage();
     return EXIT_FAILURE;
   }
 
-  return EXIT_SUCCESS;
-}
+   // attempt to open an attached HID
+  hid_device *handle = MCP2210_Init();
 
-static int dds_init(hid_device **out) {
-  int res;
+  if (handle == NULL) {
+    hid_exit();
+    return EXIT_FAILURE;
+  }
 
-  res = hid_init();
+  if (!ConfigureDevices(handle, argv[2], argv[4])) {
+    MCP2210_Close(handle);
+    return EXIT_FAILURE;
+  }
   
-  if (res == -1) {
-    fprintf(stderr, "Couldn't initialize HIDAPI\n");
-    return res;
+  CSVFile *dataFile = CSV_Open(argv[6]);
+
+  if (dataFile == NULL) {
+    MCP2210_Close(handle);
+    return EXIT_FAILURE;
   }
 
-  // get the device handle
-  *out = hid_open(VID, PID, NULL);
+  // write SRAM data in whatever format we've been given
+  unsigned long long row, col;
+  unsigned int addr = 0;
 
-  if (!*out) {
-    fprintf(stderr, "Couldn't open device\n");
-    return -1;
-  }
-  return 1;
-}
+  // each column is a byte, and each row is a piece of data to write
+  // for (row = 1; row <= dataFile->numRows; row++) {
+  //   unsigned int txData = 0;
+  //   for (col = 1; col <= dataFile->numCols; col++) {
+  //     // read the first byte and shift it in
+  //     const char * elem = CSV_ReadElement(dataFile, row, col);
+  //     unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
+  //     free(elem);
+  //     txData |= ((byteAsInt && 0xFF) << (col - 1));
+  //   }
+  //   if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
+  //     fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+  //   }
+  //   addr++;
+  // }
 
-static int dds_mcp_write_read(hid_device *dev,
-                       uint8_t cmd,
-                       uint8_t sub_cmd,
-                       MCPUSBPacket *data,
-                       MCPUSBPacket *response) {
-  int res;
-  data->__data__[0] = cmd;
-  data->__data__[1] = sub_cmd;
-  res = hid_write(dev, data->__data__, 64);
-
-  if (res >= 0) {
-    memset(data->__data__, 0, 64);
-    res = hid_read(dev, response->__data__, 64);
-  } else {
-    fprintf(stderr, "Failed to write command.\n");
-  }
-  return res;
-}
-
-static int dds_dac_write(hid_device *dev,
-                         uint8_t *bytes,
-                         uint8_t n_bytes,
-                         uint8_t addr,
-                         MCPUSBPacket *response) {
-  uint8_t header = 0;
-
-  if (n_bytes > 4 || n_bytes <= 0) {
-    fprintf(stderr, "Invalid number of bytes: %d.\n", n_bytes);
-    return -1;
-  }
-
-  if (addr > 0x1F) {
-    fprintf(stderr, "Address is beyond the range of DAC registers.\n");
-    return -1;
-  }
-  // decrement before adding to header
-  header |= ((n_bytes - 1) << 5) | addr;
-
-  //add one for header byte
-  n_bytes++;
-
-  return dds_dac_transfer(dev, bytes, n_bytes, header, response);
-}
-
-static int dds_dac_read(hid_device *dev,
-                         uint8_t n_bytes,
-                         uint8_t addr,
-                         MCPUSBPacket *response) {
-  uint8_t header = 0;
-
-  if (n_bytes > 4 || n_bytes <= 0) {
-    fprintf(stderr, "Invalid number of bytes: %d.\n", n_bytes);
-    return -1;
-  }
-
-  if (addr > 0x1F) {
-    fprintf(stderr, "Address is beyond the range of DAC registers.\n");
-    return -1;
-  }
-  // decrement before adding to header
-  header |= (0x1 << 7) | ((n_bytes - 1) << 5) | addr;
-
-  // add one for header byte
-  n_bytes++;
-
-  return dds_dac_transfer(dev, NULL, n_bytes, header, response);
-}
-
-static int dds_dac_transfer(hid_device *dev,
-                            uint8_t *bytes,
-                            uint8_t n_bytes,
-                            uint8_t header,
-                            MCPUSBPacket *response) {
-  int res, i;
-
-  // write necessary SPI transfer settings
-  MCPSPITransferSettings spi_transfer_settings = {0};
-  MCPResponse spi_res = {0};
-
-  spi_transfer_settings.br2 = 0x1B;
-  spi_transfer_settings.br1 = 0xB7;
-
-  // we only want CS_DAC active for this transfer cycle
-  spi_transfer_settings.idle_cs_val_low = 0x01;
-  spi_transfer_settings.active_cs_val_low = 0xFE;
-  spi_transfer_settings.cs_to_data_delay_low = 0x01;
-  spi_transfer_settings.last_data_to_cs_delay_low = 0x01;
-  spi_transfer_settings.inter_data_delay_low = 0x01;
-  spi_transfer_settings.bytes_per_transaction_low = n_bytes;
-  res = dds_mcp_write_read(dev, CMD_SET_RAM_SPI_SETTINGS, 0x00,
-                           (MCPUSBPacket *) &spi_transfer_settings,
-                           (MCPUSBPacket *) &spi_res);
-  if (res == -1) {
-    return res;
-  }
-
-  MCPSPIDataTransfer spi_data_transfer = {0};
-  spi_data_transfer.bytes = n_bytes;
-  spi_data_transfer.spi_data[0] = header;
-
-  // only add bytes if we're doing a write operation
-  if (bytes) {
-    for (i = 0; i < n_bytes - 1; i++) {
-      spi_data_transfer.spi_data[i + 1] = bytes[i];
+  // only one column, each row is a piece of data to write
+  for (row = 1; row <= dataFile->numRows; row++) {
+    for (col = 1; col <= dataFile->numCols; col++) {
+      // read the first byte and shift it in
+      char * elem = CSV_ReadElement(dataFile, row, col);
+      unsigned int txData = (unsigned int) strtol(elem, NULL, 16);
+      free(elem);
+      if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
+        fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+      }
     }
+    addr++;
   }
-  res = dds_mcp_write_read(dev, CMD_SPI_DATA_TRANSFER, 0x00,
-                           (MCPUSBPacket *) &spi_data_transfer,
-                           (MCPUSBPacket *) response);
-  return res;
+
+  CSV_Close(dataFile);
+  MCP2210_Close(handle);
+  return EXIT_SUCCESS;
 }
