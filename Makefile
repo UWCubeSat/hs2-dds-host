@@ -54,5 +54,6 @@ $(OUTDIR)/%.o: $(SRCDIR)/%.c
 clean:
 	rm -f $(OBJS)
 	rm -f $(DEPS)
+	rm -f $(BINDIR)/$(BIN)
 
 .PHONY: all clean
