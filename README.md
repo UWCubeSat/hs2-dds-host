@@ -6,7 +6,7 @@ dds-host is a console-based (for now) application that allows us to configure an
 This file enumerates a few functions to read and write to the SRAM on the DDS-AWG.
 
 ## csv.c
-This file provides a really simple interface to read from CSV Files (but not read).
+This file provides a really simple interface to read from CSV Files (but not write).
 
 ## dac5687.c
 This file provides an interface to read, write and configure a DAC5687 via the MCP2210.
