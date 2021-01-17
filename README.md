@@ -25,3 +25,19 @@ Until I make a better makefile, simply type "make" in the root of the repository
 Because I don't want to learn how to write udev rules right now, this program requires that the user invoke it as 'root' using sudo.
 Invoking the program then looks like:
 $sudo bin/dds-host --dac-config <filename> --mcp-config <filename> --data <filename>
+
+## CSV Files
+CSV files in general need to be formatted in a particular way. Each row needs to end in a newline ('\n' on *nix-like machines), NOT a comma.
+There needs to be a newline at the end of the file as well (1 empty line).
+
+### DAC Config File
+This file is formatted so that the address (in base-16) is in the first column, and the byte to be written to that address is in the second column (also base-16). 
+
+### MCP Config File
+Currently this file isn't used.
+
+### Data File
+Data can be formatted 1 of 3 ways:
+1) 4 bytes per column (the CSV is N X 1). 
+2) 2 bytes per column (the CSV is N X 2).
+3) 1 byte per column (the CSV is N X 4).

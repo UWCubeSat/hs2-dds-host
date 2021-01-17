@@ -140,34 +140,68 @@ int main(int argc, char *argv[]) {
   unsigned long long row, col;
   unsigned int addr = 0;
 
-  // each column is a byte, and each row is a piece of data to write
-  // for (row = 1; row <= dataFile->numRows; row++) {
-  //   unsigned int txData = 0;
-  //   for (col = 1; col <= dataFile->numCols; col++) {
-  //     // read the first byte and shift it in
-  //     const char * elem = CSV_ReadElement(dataFile, row, col);
-  //     unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
-  //     free(elem);
-  //     txData |= ((byteAsInt && 0xFF) << (col - 1));
-  //   }
-  //   if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
-  //     fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
-  //   }
-  //   addr++;
-  // }
-
-  // only one column, each row is a piece of data to write
-  for (row = 1; row <= dataFile->numRows; row++) {
-    for (col = 1; col <= dataFile->numCols; col++) {
-      // read the first byte and shift it in
-      char * elem = CSV_ReadElement(dataFile, row, col);
-      unsigned int txData = (unsigned int) strtol(elem, NULL, 16);
-      free(elem);
-      if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
-        fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+  switch (dataFile->numCols) {
+    case (4):
+    {
+      // 1 byte per column
+      for (row = 1; row <= dataFile->numRows; row++) {
+        unsigned int txData = 0;
+        for (col = 1; col <= dataFile->numCols; col++) {
+          // read the first byte and shift it in
+          const char * elem = CSV_ReadElement(dataFile, row, col);
+          unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
+          free(elem);
+          txData |= ((byteAsInt && 0xFF) << (col - 1) * 8);
+        }
+        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
+          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+        }
+        addr++;
       }
+      break;
     }
-    addr++;
+    case (2):
+    {
+      // 2 bytes per column
+      for (row = 1; row <= dataFile->numRows; row++) {
+        unsigned int txData = 0;
+        for (col = 1; col <= dataFile->numCols; col++) {
+          // read the first byte and shift it in
+          const char * elem = CSV_ReadElement(dataFile, row, col);
+          unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
+          free(elem);
+          txData |= ((byteAsInt && 0xFF) << (col - 1) * 16);
+        }
+        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
+          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+        }
+        addr++;
+      }
+      break;
+    }
+    case (1):
+    {
+      // 4 bytes per column
+      for (row = 1; row <= dataFile->numRows; row++) {
+        unsigned int txData = 0;
+        const char * elem = CSV_ReadElement(dataFile, row, 1);
+        unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
+        free(elem);
+        txData |= ((byteAsInt && 0xFF) << (col - 1) * 16);
+        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
+          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
+        }
+        addr++;
+      }
+      break;
+    }
+    default:
+    {
+      fprintf(stderr, "Data in the csv isn't formatted correctly. Check README for formatting notes.\n");
+      CSV_Close(dataFile);
+      MCP2210_Close(handle);
+      return EXIT_FAILURE;
+    }
   }
 
   CSV_Close(dataFile);
