@@ -20,6 +20,8 @@ This provides a full-featured interface for the MCP2210 implemented on top of th
 
 # Compilation
 Until I make a better makefile, simply type "make" in the root of the repository directory. 
+On Ubuntu/Debian, you can install hidapi via apt:
+$ sudo apt update && sudo apt install libhidapi-libusb0
 
 # Usage
 Because I don't want to learn how to write udev rules right now, this program requires that the user invoke it as 'root' using sudo.
