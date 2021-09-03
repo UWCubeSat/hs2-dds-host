@@ -33,10 +33,10 @@
 #include <unistd.h>   // for usleep()
 
 // HIDAPI
-#include "hidapi/hidapi.h"
+#include <hidapi.h>
 
 // MCP2210
-#include "dds-host/mcp2210.h"
+#include "mcp2210.h"
 
 static int MCP2210_GenericWriteRead(hid_device *handle, uint8_t *txBuf, uint8_t *rxBuf) {
   if (handle == NULL) {

@@ -28,13 +28,13 @@
 #include <string.h>     // for memset(), memcpy()
 
 // HIDAPI
-#include <hidapi/hidapi.h>
+#include <hidapi.h>
 
 // MCP2210
-#include "dds-host/mcp2210.h"
+#include "mcp2210.h"
 
 // CPLD
-#include "dds-host/cpld.h"
+#include "cpld.h"
 
 bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData) {
   if (handle == NULL) {
