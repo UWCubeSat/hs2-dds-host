@@ -1,5 +1,5 @@
 # Purpose
-dds-host is a console-based (for now) application that allows us to configure and write data to the Direct-Digital Synthesizer Arbitrary Waveform Generator (DDS-AWG) from some host (in this case a PC). The DDS uses an MCP2210 USB-to-SPI IC which enumerates as a HID. This lets us control the DDS using the HID interface; more specifically, this application leverages hidapi to communicate with the MCP2210. This project is currently very small while I figure out how to use HID devices in general and get comfortable with the MCP2210's interface in particular.
+dds-host is a console-based (for now) application that allows us to configure and write data to the Direct-Digital Synthesizer Arbitrary Waveform Generator (DDS-AWG) from some host (in this case a PC). The DDS uses an MCP2210 USB-to-SPI IC which enumerates as a HID. This lets us control the DDS using the HID interface; more specifically, this application leverages hidapi to communicate with the MCP2210.
 
 # src
 ## cpld.c
@@ -25,9 +25,9 @@ DDS-AWG.
 The Makefile supports compilation on both Windows (using MinGW) and linux (using GNU GCC).
 
 On Ubuntu/Debian, you can install hidapi via apt:
-$ sudo apt update && sudo apt install libhidapi-libusb0
+`$sudo apt update && sudo apt install libhidapi-libusb0`
 
-On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. This can be done using MinGW64's gcc, then invoking the <ar ru> on the generated hid.o file. Then, the provided header file and shared library (libhidapi.a) should be added to your MinGW64 include and lib folders, respectively.
+On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. This can be done using MinGW64's gcc, then invoking the `ar ru` command on the generated hid.o file. Then, the provided header file and shared library (libhidapi.a) should be added to your MinGW64 include and lib folders, respectively.
 
 # Usage
 On Linux, this tool requires sudo since it accesses USB devices, which are a privileged resource. Eventually, I'll set up a udev rule that will bypass this requirement. On Windows, simply invoke the provided executable from your choice of terminal.
