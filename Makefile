@@ -23,37 +23,50 @@
 # Simple makefile: Compile all .c files into .o files, generating "dependency" .d files too (see
 # https://stackoverflow.com/q/2394609)
 
-SRCDIR 	:= ./src
-SRCS 		:= $(wildcard $(SRCDIR)/*.c)
+SRCDIR 	:= src
+SRCS 	:= $(wildcard $(SRCDIR)/*.c)
 
-OUTDIR 	:= ./out
-OBJS 		:= $(SRCS:$(SRCDIR)/%.c=$(OUTDIR)/%.o)
+OUTDIR 	:= out
+OBJS 	:= $(SRCS:$(SRCDIR)/%.c=$(OUTDIR)/%.o)
 
-DEPS 		:= $(OBJS:%.o=%.d)
+DEPS 	:= $(OBJS:%.o=%.d)
 
-BINDIR 	:= ./bin
-BIN  		:= dds-host
+BINDIR 	:= bin
+BIN  	:= dds-host
 
-CC   		:= gcc
+CC   	:= gcc
 
-INCDIR  := lib/include
+INCDIR  := include
 
-LIBS    := -lhidapi-libusb
+# check which platform we're on
+ifneq (, $(findstring Windows_NT,$(OS)))
+	LIBS 	:= -lhidapi -lsetupapi
+else
+	LIBS 	:= -lhidapi
+endif
+$(info [${SRCS}])
+
 CFLAGS := $(CFLAGS) -Wall -g -I$(INCDIR)
 
 all: $(BIN)
 
-$(BIN): $(OBJS)
+$(BIN): $(OBJS) bin
 	$(CC) $(LDFLAGS) -o $(BINDIR)/$(BIN) $(OBJS) $(LIBS)
 
-$(OUTDIR)/%.o: $(SRCDIR)/%.c
+$(OUTDIR)/%.o: $(SRCDIR)/%.c out
 	$(CC) $(CFLAGS) -MMD -c $< -o $@
+
+out:
+	mkdir $@
+
+bin:
+	mkdir $@
 
 -include $(DEPS)
 
 clean:
-	rm -f $(OBJS)
-	rm -f $(DEPS)
-	rm -f $(BINDIR)/$(BIN)
+	$(RM_CMD) $(OBJS)
+	$(RM_CMD) $(DEPS)
+	$(RM_CMD) $(wildcard $(BINDIR)/$(BIN)*)
 
-.PHONY: all clean
+.PHONY: all clean debug
