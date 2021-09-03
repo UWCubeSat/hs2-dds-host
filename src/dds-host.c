@@ -26,64 +26,113 @@
 #include <stdio.h>  // for printf()
 #include <stdbool.h>  // for bool type
 #include <stdlib.h> // for exit()
-#include <unistd.h> // for getopt()
 #include <string.h> // for memset()
+#include <unistd.h> // for access()
+#include <fcntl.h>
 
 // HIDAPI
-#include "hidapi/hidapi.h"
+#include <hidapi.h>
 
 // project libraries
-#include "dds-host/dds-host.h"
-#include "dds-host/mcp2210.h"
-#include "dds-host/dac5687.h"
-#include "dds-host/cpld.h"
-#include "dds-host/util/csv.h"
+#include "cfg.h"
+#include "dds-host.h"
+#include "mcp2210.h"
+#include "dac5687.h"
+#include "cpld.h"
+#include "csv.h"
 
 static void PrintUsage() {
-  fprintf(stderr, "Usage: ./bin/dds-host --dac-config <filename> --mcp-config <filename> --data <filename>\n");
+  fprintf(stderr, "Usage: ./bin/dds-host <--i | --c [-d <dac_config_file_path> -m <mcp_config_file_path> -D <data_folder>]>\n");
+  fprintf(stderr, "\t--i: Enter interactive and manually configure each device. Specify either this or --c\n");
+  fprintf(stderr, "\t--c: Enter configuration mode and pass configuration files. Specify either this or --i\n");
+  fprintf(stderr, "\t\t-d: Specifies the path to the DAC5687 configuration file in config mode.\n");
+  fprintf(stderr, "\t\t-m: Specifies the path to the MCP2210 configuration file in config mode.\n");
+  fprintf(stderr, "\t-D: Specifies the path to a folder containing data files.\n");
 }
 
-static bool CheckArgs(int argc, char *argv[]) {
-  // we expect the args: --dac-config <filename> --mcp2210-config <filename> --data <filename>
-  // TODO: make CLI more flexible
-  if (argc != 7) {
-    fprintf(stderr, "Not enough args: %d\n", argc);
+static bool HandleDACConfiguration(DAC5687Settings *out) {
+  return true;
+}
+
+static bool HandleMCPConfiguration(MCP2210Settings *out) {
+  return true;
+}
+
+static bool HandleInteractiveMode(Settings *out) {
+  // TODO: implement interactive mode
+  //       - Step for each DAC register, user chooses if they'd like to configure that register
+  //          - default values for registers which aren't configured
+  //       - Step for each MCP2210 config block: usb, chip, spi
+  //          - user can choose to, defaults will be chosen otherwise
+  return true;
+}
+
+static bool HandleMCPConfigOptions() {
+  return true;
+}
+
+static bool HandleConfigMode(Settings *out, char * dac_cfg, char * mcp_cfg) {
+  ConfigFile *mcp_config_file;
+  ConfigFile *dac_config_file;
+
+  mcp_config_file = CFG_OpenConfigFile(mcp_cfg);
+  dac_config_file = CFG_OpenConfigFile(dac_cfg);
+
+  if (mcp_config_file == NULL || dac_config_file == NULL) {
     return false;
   }
 
-  if (strcmp(argv[1], "--dac-config") != 0) {
-    fprintf(stderr, "missing dac config file option\n");
+  if (!CFG_ParseConfigFile(mcp_config_file)) {
+    fprintf(stderr, "Failed to parse MCP config file.\n");
+    return false;
+  }
+  
+  if (!CFG_ParseConfigFile(dac_config_file)) {
+    fprintf(stderr, "Failed to parse DAC config file.\n");
     return false;
   }
 
-  if (strcmp(argv[3], "--mcp-config") != 0) {
-    fprintf(stderr, "missing mcp config file option\n");
+  Settings *settings = (Settings *) malloc(sizeof(Settings));
+
+  return true;
+}
+
+static bool CheckConfigArgs(int argc, char * dac_cfg, char * mcp_cfg, char * data_path) {
+  // first check that the number of args was right
+  if (argc != 8) {
+    PrintUsage();
     return false;
   }
 
-  if (strcmp(argv[5], "--data") != 0) {
-    fprintf(stderr, "missing data file option\n");
+  // check that files exist
+  if (!access(dac_cfg, F_OK)) {
+    PrintUsage();
+    return false;
+  }
+
+  if (!access(mcp_cfg, F_OK)) {
+    PrintUsage();
+    return false;
+  }
+
+  if (!access(data_path, F_OK)) {
+    PrintUsage();
     return false;
   }
   return true;
 }
 
-static bool ConfigureDevices(hid_device *handle, char *dacFileName, char *mcpFileName) {
-  CSVFile *dacConfigFile = CSV_Open(dacFileName);
-  CSVFile *mcpConfigFile = CSV_Open(mcpFileName);
-
-  if (dacConfigFile == NULL) {
+static bool CheckInteractiveArgs(int argc) {
+  if (argc != 2) {
+    PrintUsage();
     return false;
   }
+  return true;
+}
 
-  if (mcpConfigFile == NULL) {
-    return false;
-  }
-
+static bool ConfigureDevices(hid_device *handle, Settings settings) {
   // configure the DAC first
-  if (!DAC5687_Configure(dacConfigFile, handle)) {
-    CSV_Close(mcpConfigFile);
-    CSV_Close(dacConfigFile);
+  if (!DAC5687_Configure(handle, settings.dac_settings)) {
     return false;
   }
 
@@ -98,20 +147,75 @@ static bool ConfigureDevices(hid_device *handle, char *dacFileName, char *mcpFil
   chipSettings.defaultGPIODirection = 0x0000;
   chipSettings.defaultGPIOValue = 0xFFFF;
 
-  if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
-    CSV_Close(mcpConfigFile);
-    CSV_Close(dacConfigFile);
-    return false;
-  }
-
-  // clean up
-  CSV_Close(mcpConfigFile);
-  CSV_Close(dacConfigFile);
-  return true;
+  bool status = MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0;
+  return status;
 }
 
 int main(int argc, char *argv[]) {
-  if (!CheckArgs(argc, argv)) {
+  // flags for command line switches
+  bool interactive = false;
+  bool config = false;
+  bool dac_config = false;
+  bool mcp_config = false;
+  bool data = false;
+  char dac_path[MAX_PATH_LEN];
+  char mcp_path[MAX_PATH_LEN];
+  char data_path[MAX_PATH_LEN];
+  
+  // parse command string
+  int i;
+  for (i = 1; i < argc; i++) {
+    // extract the command code
+    char cmd = argv[i][1] == '-' ? argv[i][2] : argv[i][1];
+    switch(cmd) {
+      case 'c':
+        config = true;
+        break;
+      case 'i':
+        interactive = true;
+        break;
+      case 'd':
+        dac_config = true;
+        if (i < argc - 1) {
+          strcpy(dac_path, argv[++i]);
+        }
+        break;
+      case 'm':
+        mcp_config = true;
+        if (i < argc - 1) {
+          strcpy(mcp_path, argv[++i]);
+        }
+        break;
+      case 'D':
+        data = true;
+        if (i < argc - 1) {
+          strcpy(data_path, argv[++i]);
+        }
+        break;
+      default:
+        fprintf(stderr, "Unknown command code: %c", cmd);
+        return EXIT_FAILURE;
+    }
+  }
+
+  Settings settings = {0};
+  bool success = false;
+  if (config) {
+    if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
+      PrintUsage();
+      return EXIT_FAILURE;
+    } else {
+      success = HandleConfigMode(&settings, dac_path, mcp_path);
+    }
+  } else if (interactive) {
+    if (!CheckInteractiveArgs(argc)) {
+      PrintUsage();
+      return EXIT_FAILURE;
+    } else {
+      success = HandleInteractiveMode(&settings);
+    } 
+    printf("Entering interactive mode.\n");
+  } else {
     PrintUsage();
     return EXIT_FAILURE;
   }
@@ -124,87 +228,19 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  if (!ConfigureDevices(handle, argv[2], argv[4])) {
-    MCP2210_Close(handle);
-    return EXIT_FAILURE;
-  }
+  // if (!ConfigureDevices(handle, argv[2], argv[4])) {
+  //   MCP2210_Close(handle);
+  //   return EXIT_FAILURE;
+  // }
   
-  CSVFile *dataFile = CSV_Open(argv[6]);
+  // CSVFile *dataFile = CSV_Open(argv[6]);
 
-  if (dataFile == NULL) {
-    MCP2210_Close(handle);
-    return EXIT_FAILURE;
-  }
+  // if (dataFile == NULL) {
+  //   MCP2210_Close(handle);
+  //   return EXIT_FAILURE;
+  // }
 
-  // write SRAM data in whatever format we've been given
-  unsigned long long row, col;
-  unsigned int addr = 0;
-
-  switch (dataFile->numCols) {
-    case (4):
-    {
-      // 1 byte per column
-      for (row = 1; row <= dataFile->numRows; row++) {
-        unsigned int txData = 0;
-        for (col = 1; col <= dataFile->numCols; col++) {
-          // read the first byte and shift it in
-          const char * elem = CSV_ReadElement(dataFile, row, col);
-          unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
-          free(elem);
-          txData |= ((byteAsInt && 0xFF) << (col - 1) * 8);
-        }
-        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
-          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
-        }
-        addr++;
-      }
-      break;
-    }
-    case (2):
-    {
-      // 2 bytes per column
-      for (row = 1; row <= dataFile->numRows; row++) {
-        unsigned int txData = 0;
-        for (col = 1; col <= dataFile->numCols; col++) {
-          // read the first byte and shift it in
-          const char * elem = CSV_ReadElement(dataFile, row, col);
-          unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
-          free(elem);
-          txData |= ((byteAsInt && 0xFF) << (col - 1) * 16);
-        }
-        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
-          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
-        }
-        addr++;
-      }
-      break;
-    }
-    case (1):
-    {
-      // 4 bytes per column
-      for (row = 1; row <= dataFile->numRows; row++) {
-        unsigned int txData = 0;
-        const char * elem = CSV_ReadElement(dataFile, row, 1);
-        unsigned int byteAsInt = (unsigned int) strtol(elem, NULL, 16);
-        free(elem);
-        txData |= ((byteAsInt && 0xFF) << (col - 1) * 16);
-        if (!CPLD_WriteSRAMAddress(handle, addr, txData)) {
-          fprintf(stderr, "WriteSRAMAddress() failed for addr: %d\n", addr);
-        }
-        addr++;
-      }
-      break;
-    }
-    default:
-    {
-      fprintf(stderr, "Data in the csv isn't formatted correctly. Check README for formatting notes.\n");
-      CSV_Close(dataFile);
-      MCP2210_Close(handle);
-      return EXIT_FAILURE;
-    }
-  }
-
-  CSV_Close(dataFile);
-  MCP2210_Close(handle);
+  // CSV_Close(dataFile);
+  // MCP2210_Close(handle);
   return EXIT_SUCCESS;
 }
