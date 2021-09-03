@@ -27,13 +27,13 @@ The Makefile supports compilation on both Windows (using MinGW) and linux (using
 On Ubuntu/Debian, you can install hidapi via apt:
 `$sudo apt update && sudo apt install libhidapi-libusb0`
 
-On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. This can be done using MinGW64's gcc, then invoking the `ar ru` command on the generated hid.o file. Then, the provided header file and shared library (libhidapi.a) should be added to your MinGW64 include and lib folders, respectively.
+On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. This can be done using MinGW64's gcc, then invoking the `ar ru` command on the generated hid.o file. Then, the provided header file and shared library (libhidapi.a) should be added to your MinGW64 include and lib folders, respectively. The HIDAPI sources can be retrieved from [this repository](https://github.com/libusb/hidapi).
 
 # Usage
 On Linux, this tool requires sudo since it accesses USB devices, which are a privileged resource. Eventually, I'll set up a udev rule that will bypass this requirement. On Windows, simply invoke the provided executable from your choice of terminal.
 
 ## CSV Files
-CSV files in general need to be formatted in a particular way. Each row needs to end in a newline ('\n' on *nix-like machines), NOT a comma.
+CSV files in general need to be formatted in a particular way. Each row needs to end in a newline ('\n' on \*nix-like machines), NOT a comma.
 There needs to be a newline at the end of the file as well (1 empty line).
 
 ### DAC Config File
