@@ -22,23 +22,29 @@
  * SOFTWARE.
  */
 
+#ifndef CSV_H_
+#define CSV_H_
+
+#include <stdio.h>
 #include <stdbool.h>
 
-// HIDAPI
-#include "hidapi/hidapi.h"
+#define MAX_CELL_LENGTH       1024
 
-// MCP2210
-#include "dds-host/mcp2210.h"
+typedef struct csv_file_st {
+  unsigned long long numRows;
+  unsigned long long numCols;
+  FILE *fp;
+} CSVFile;
 
-// 2^17 - 1
-#define SRAM_MAX_ADDRESS        131071
+// opens a CSV file to be used with other functions
+// in this interface
+CSVFile * CSV_Open(const char * fileName);
 
-#define SRAM_PACKET_SIZE        7
+// releases resources associated with input file
+bool CSV_Close(CSVFile *file);
 
-#define SRAM_DATA_SIZE          4
+// reads a single element from the CSV. Returns
+// true if successful, false otherwise.
+char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col);
 
-// writes to a memory location on the SRAM
-bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData);
-
-// reads from a memory location on the SRAM
-bool CPLD_ReadSRAMAddress(hid_device *handle, unsigned int addr, unsigned int *rxData);
+#endif  // CSV_H_
