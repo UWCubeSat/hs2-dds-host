@@ -1,3 +1,5 @@
 // VSCode Files
 *.vscode
 *.code-workspace
+out
+bin
