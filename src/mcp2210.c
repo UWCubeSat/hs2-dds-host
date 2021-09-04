@@ -224,9 +224,9 @@ int MCP2210_WriteUSBSettings(hid_device *handle, const MCP2210USBKeySettings *ne
   txBuf[2] = txBuf[3] = 0;
 
   txBuf[4] = newSettings->vid;
-  txBuf[5] = (newSettings->vid >> 8) & 0xFF00;
+  txBuf[5] = (newSettings->vid & 0xFF00) >> 8;
   txBuf[6] = newSettings->pid;
-  txBuf[7] = (newSettings->pid >> 8) & 0xFF00;
+  txBuf[7] = (newSettings->pid & 0xFF00) >> 8;
   txBuf[8] = newSettings->powerOption;
   txBuf[9] = newSettings->requestedCurrent;
 
