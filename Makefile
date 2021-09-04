@@ -41,10 +41,11 @@ INCDIR  := include
 # check which platform we're on
 ifneq (, $(findstring Windows_NT,$(OS)))
 	LIBS 	:= -lhidapi -lsetupapi
+	RM_CMD  := del /Q
 else
 	LIBS 	:= -lhidapi
+	RM_CMD  := rm -rf
 endif
-$(info [${SRCS}])
 
 CFLAGS := $(CFLAGS) -Wall -g -I$(INCDIR)
 
@@ -65,8 +66,7 @@ bin:
 -include $(DEPS)
 
 clean:
-	$(RM_CMD) $(OBJS)
-	$(RM_CMD) $(DEPS)
-	$(RM_CMD) $(wildcard $(BINDIR)/$(BIN)*)
+	$(RM_CMD) $(OUTDIR)
+	$(RM_CMD) $(BINDIR)
 
 .PHONY: all clean debug

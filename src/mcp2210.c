@@ -91,6 +91,30 @@ hid_device * MCP2210_Init() {
   return handle;
 }
 
+int MCP2210_Configure(hid_device *handle, const MCP2210Settings *settings) {
+  if (handle == NULL) {
+    return -1;
+  }
+
+  if (settings == NULL) {
+    return -1;
+  }
+
+  // configure the MCP2210
+  if (MCP2210_WriteSpiSettings(handle, &settings->spi_settings, false) < 0) {
+    return -1;
+  }
+
+  if (MCP2210_WriteChipSettings(handle, &settings->chip_settings, false < 0)) {
+    return -1;
+  }
+
+  if (MCP2210_WriteUSBSettings(handle, &settings->usb_settings) < 0) {
+    return -1;
+  }
+  return 0;
+}
+
 int MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSettings *newSettings, bool vm) {
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
@@ -174,6 +198,70 @@ int MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *curr
     currentSettings->bytesPerTransaction = rxBuf[18] | (rxBuf[19] << 8);
     currentSettings->SPIMode = rxBuf[20];
   }
+  return res;
+}
+
+int MCP2210_WriteUSBSettings(hid_device *handle, const MCP2210USBKeySettings *newSettings) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle must not be null\n");
+    return -1;
+  }
+
+  if (newSettings == NULL) {
+    fprintf(stderr, "newSettings must not be null\n");
+    return -1;
+  }
+
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = SetNVRAMSettings;
+  txBuf[1] = USBSettings;
+
+  txBuf[2] = txBuf[3] = 0;
+
+  txBuf[4] = newSettings->vid;
+  txBuf[5] = (newSettings->vid >> 8) & 0xFF00;
+  txBuf[6] = newSettings->pid;
+  txBuf[7] = (newSettings->pid >> 8) & 0xFF00;
+  txBuf[8] = newSettings->powerOption;
+  txBuf[9] = newSettings->requestedCurrent;
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+}
+
+int MCP2210_ReadUSBSettings(hid_device *handle, MCP2210USBKeySettings *currentSettings) {
+  if (handle == NULL) {
+    fprintf(stderr, "handle must not be null\n");
+    return -1;
+  }
+
+  if (currentSettings == NULL) {
+    fprintf(stderr, "newSettings must not be null\n");
+    return -1;
+  }
+
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
+  memset(txBuf, 0, MCP2210_REPORT_LEN);
+  memset(rxBuf, 0, MCP2210_REPORT_LEN);
+
+  txBuf[0] = GetNVRAMSettings;
+  txBuf[1] = USBSettings;
+
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+
+  if (res == 0x00) {
+    currentSettings->vid = txBuf[4] | (txBuf[5] << 8);
+    currentSettings->pid = txBuf[6] | (txBuf[7] << 8);
+    currentSettings->powerOption = txBuf[8];
+    currentSettings->requestedCurrent = txBuf[9];
+  }
+
   return res;
 }
 
