@@ -169,6 +169,11 @@ typedef struct settings_t {
     DAC5687Settings dac_settings;
 } Settings;
 
+typedef struct dds_data_t {
+    uint64_t address;
+    uint32_t data;
+} Data;
+
 #define MAX_PATH_LEN 64
 
 #endif  // DDS_HOST_H_
