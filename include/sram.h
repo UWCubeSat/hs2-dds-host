@@ -22,6 +22,9 @@
  * SOFTWARE.
  */
 
+#ifndef SRAM_H_
+#define SRAM_H_
+
 #include <stdbool.h>
 
 // HIDAPI
@@ -36,7 +39,9 @@
 #define SRAM_DATA_SIZE          4
 
 // writes to a memory location on the SRAM
-bool CPLD_WriteSRAMAddress(hid_device *handle, unsigned int addr, unsigned int txData);
+bool SRAM_WriteAddress(hid_device *handle, unsigned int addr, unsigned int txData);
 
 // reads from a memory location on the SRAM
-bool CPLD_ReadSRAMAddress(hid_device *handle, unsigned int addr, unsigned int *rxData);
+bool SRAM_ReadAddress(hid_device *handle, unsigned int addr, unsigned int *rxData);
+
+#endif  // SRAM_H_
