@@ -41,19 +41,71 @@
 // verify that a multi-byte write doesn't intersect with a factory only address
 #define CHECK_BYTES(addr, bytes) (bytes <= (0x08 - startAddr) && bytes <= (0x1A - startAddr) && bytes <= (0x1D - startAddr))
 
-bool DAC5687_Configure(hid_device *handle, DAC5687Settings settings) {
+bool DAC5687_Configure(hid_device *handle, const DAC5687Settings *settings) {
   if (handle == NULL) {
     fprintf(stderr, "handle can't be null\n");
     return false;
   }
 
-  // TODO: write all registers
-  uint8_t cfg_3_byte = (settings.config_3.sif_4_pin << 7) | (settings.config_3.dac_ser_data << 6) |
-                       (settings.config_3.half_rate << 5) | (settings.config_3.usb << 3) |
-                       (settings.config_3.counter_mode);
+  if (settings == NULL) {
+    fprintf(stderr, "settings can't be null\n");
+    return false;
+  }
 
-  
-  return DAC5687_WriteRegister(handle, CONFIG_3, cfg_3_byte);
+  const int kNumRegisters = 28;
+  char txBuf[kNumRegisters];
+  memset(txBuf, 0, kNumRegisters * sizeof(char));
+
+  // populate registers
+  txBuf[0] = (settings->version.sleep_dac_a << 7) | (settings->version.sleep_dac_b << 6) |
+              (settings->version.hpla << 5) | (settings->version.hplb << 4);
+  txBuf[1] = (settings->config_0.pll_vco_div << 6) | (settings->config_0.pll_freq << 5) |
+              (settings->config_0.pll_kv << 5) | (settings->config_0.fir_interp << 3) |
+              (settings->config_0.inv_pll_lock << 2) | (settings->config_0.fifo_bypass);
+  txBuf[2] = (settings->config_1.qflag << 7) | (settings->config_1.interl << 6) |
+              (settings->config_1.dual_clk << 5) | (settings->config_1.twos << 4) |
+              (settings->config_1.rev_abus << 3) | (settings->config_1.rev_bbus << 2) |
+              (settings->config_1.fir_bypass << 1) | (settings->config_1.full_bypass);
+  txBuf[3] = (settings->config_1.qflag << 7) | (settings->config_1.interl << 6) |
+              (settings->config_1.dual_clk << 5) | (settings->config_1.twos << 4) |
+              (settings->config_1.rev_abus << 3) | (settings->config_1.rev_bbus << 2) |
+              (settings->config_1.fir_bypass << 1) | (settings->config_1.full_bypass);
+  txBuf[4] = (settings->config_3.sif_4_pin << 7) | (settings->config_3.dac_ser_data << 6) |
+              (settings->config_3.half_rate << 5) | (settings->config_3.usb << 3) |
+              (settings->config_3.counter_mode);
+  txBuf[5] = (settings->sync_cntl.sync_phstr << 7) | (settings->sync_cntl.sync_nco << 6) |
+              (settings->sync_cntl.sync_cm << 5) | (settings->sync_cntl.sync_fifo << 2);
+  txBuf[9] = (settings->nco_freq & 0xFF);
+  txBuf[10] = (settings->nco_freq & 0xFF00) >> 8;
+  txBuf[11] = (settings->nco_freq & 0xFF0000) >> 16;
+  txBuf[12] = (settings->nco_freq & 0xFF000000) >> 24;
+  txBuf[13] = (settings->nco_phase & 0xFF);
+  txBuf[14] = (settings->nco_phase & 0xFF00) >> 8;
+  txBuf[15] = (settings->dac_a_off & 0xFF);
+  txBuf[16] = (settings->dac_b_off & 0xFF);
+  txBuf[17] = (settings->dac_a_off & 0xF00) >> 8;
+  txBuf[18] = (settings->dac_b_off & 0xF00) >> 8;
+  txBuf[19] = (settings->qmc_a_gain & 0xFF);
+  txBuf[20] = (settings->qmc_b_gain & 0xFF);
+  txBuf[21] = (settings->qmc_phase & 0xFF);
+  txBuf[22] = ((settings->qmc_phase & 0x300) >> 2) | ((settings->qmc_a_gain & 0x500) >> 5) |
+              ((settings->qmc_b_gain & 0x500) >> 8);
+  txBuf[23] = (settings->dac_a_gain & 0xFF);
+  txBuf[24] = (settings->dac_b_gain & 0xFF);
+  txBuf[25] = ((settings->dac_a_gain & 0x800) >> 4) | ((settings->dac_b_gain & 0x800) >> 8); 
+  txBuf[27] = ((settings->atest & 0x8) << 4) | (settings->phstr_del & 0x2);
+  txBuf[28] = (settings->phstr_clk_div_ctl & 0x1);
+
+  for (int i = 0; i < kNumRegisters; i++) {
+    if (i == 0x08 || i == 0x1A) {
+      // factory use only so we skip these
+      continue;
+    }
+    if (!DAC5687_WriteRegister(handle, (DAC5687Address) i, txBuf[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned char txByte) {
@@ -67,28 +119,33 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
     return false;
   }
 
-  // get current SPI settings
-  MCP2210SPITransferSettings spiSettings = {0};
-  if (MCP2210_ReadSpiSettings(handle, &spiSettings, true) < 0) {
+  // save a copy of the current SPI settings
+  MCP2210SPITransferSettings currentSpiSettings = {0};
+  if (MCP2210_ReadSpiSettings(handle, &currentSpiSettings, true) < 0) {
     fprintf(stderr, "WriteRegister()->ReadSpiSettings() failed\n");
     return false;
   }
 
+  MCP2210SPITransferSettings tempSettings;
+  memcpy(&tempSettings, &currentSpiSettings, sizeof(MCP2210SPITransferSettings));
+
   // number of bytes in the transfer + 1 for the instruction cycle
-  spiSettings.bitRate = 3000000;
+  tempSettings.bitRate = 3000000;
 
-  spiSettings.bytesPerTransaction = 2;
+  tempSettings.bytesPerTransaction = 2;
 
-  spiSettings.csToDataDelay = 0x01;
+  tempSettings.csToDataDelay = 0x01;
 
-  spiSettings.dataToDataDelay = 0x00;
+  tempSettings.dataToDataDelay = 0x00;
 
-  spiSettings.lastDataToCSDelay = 0x01;
+  tempSettings.lastDataToCSDelay = 0x01;
+  
   // CS_DAC is high when idle
-  spiSettings.idleCSValue = 0x0003;
+  tempSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  spiSettings.activeCSValue = 0x0002;
+  tempSettings.activeCSValue = 0x0002;
+  
 
   MCP2210ChipSettings chipSettings = {0};
 
@@ -115,7 +172,7 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
   unsigned char spiTxBytes[2] = {instrByte, txByte};
   unsigned char rxBuf[2];
 
-  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBuf, &spiSettings) < 0) {
+  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBuf, &tempSettings) < 0) {
     fprintf(stderr, "WriteRegister() failed\n");
     return false;
   } 
