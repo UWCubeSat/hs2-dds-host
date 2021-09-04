@@ -42,24 +42,11 @@ typedef struct cfg_block_t {
     ConfigElement *elements;
 } ConfigBlock;
 
-// corresponds with a single config file
-typedef struct cfg_file_t {
-    int fd;
-    unsigned int num_blocks;
-    ConfigBlock *blocks;
-} ConfigFile;
-
-// opens config file and instantiates variables
-ConfigFile * CFG_OpenConfigFile(const char * path);
-
 // parses the config file and fills in 
-bool CFG_ParseConfigFile(ConfigFile *file);
-
-// closes the config file and frees up any other resources
-void CFG_CloseConfigFile(ConfigFile *file);
+bool CFG_ParseConfigFile(int fd, ConfigBlock *blocks);
 
 // creates a config file based on the blocks in the structure
-void CFG_GenerateConfigFromBlocks(ConfigBlock *blocks, int num_blocks);
+bool CFG_GenerateConfigFromBlocks(ConfigBlock *blocks, int num_blocks, char * path);
 
 // frees a single block
 void CFG_FreeConfigBlock(ConfigBlock *block);
