@@ -163,11 +163,14 @@ typedef struct mcp2210_settings_t {
 } MCP2210Settings;
 
 // Initializes the MCP2210. Places a hid_device handle in 'out'.
-// Returns false on failure, true otherwise.
+// Returns NULL on failure, otherwise a new hid_device.
 hid_device * MCP2210_Init();
 
 // Releases the MCP2210 and associated memory.
 void MCP2210_Close(hid_device *handle);
+
+// configures the MCP2210 with the provided settings.
+int MCP2210_Configure(hid_device *handle, const MCP2210Settings *settings);
 
 // updates spi transfer settings. if 'vm' is false, updates NVRAM settings.
 // otherwise, updates ram settings. Returns false if write fails, true otherwise.
@@ -176,6 +179,14 @@ int MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSetting
 // get current spi transfer settings. if 'vm' is false, reads NVRAM settings.
 // otherwise, reads ram settings. returns false if read fails, true otherwise.
 int MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *currentSettings, bool vm);
+
+// updates usb settings. if 'vm' is false, updates NVRAM settings.
+// otherwise, updates ram settings. Retruns false if write fails, true otherwise.
+int MCP2210_WriteUSBSettings(hid_device *handle, const MCP2210USBKeySettings *newSettings);
+
+// get current usb settings. if 'vm' is false, updates NVRAM settings.
+// otherwise, reads ram settings. Retruns false if read fails, true otherwise.
+int MCP2210_ReadUSBSettings(hid_device *handle, MCP2210USBKeySettings *currentSettings);
 
 // updates chip settings. if 'vm' is false, updates NVRAM settings.
 // otherwise, updates ram settings. Returns false if write fails, true otherwise.
