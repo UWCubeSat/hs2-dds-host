@@ -168,7 +168,7 @@ typedef struct dac5687_settings_t {
   uint8_t phstr_clk_div_ctl;
 } DAC5687Settings;
 
-bool DAC5687_Configure(hid_device *handle, DAC5687Settings settings);
+bool DAC5687_Configure(hid_device *handle, const DAC5687Settings *settings);
 
 bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned char txByte);
 
