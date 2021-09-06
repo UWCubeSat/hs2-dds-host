@@ -27,7 +27,7 @@ The Makefile supports compilation on both Windows (using MinGW) and linux (using
 On Ubuntu/Debian, you can install hidapi via apt:
 `$sudo apt update && sudo apt install libhidapi-libusb0`
 
-On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. This can be done using MinGW64's gcc, then invoking the `ar ru` command on the generated hid.o file. Then, the provided header file and shared library (libhidapi.a) should be added to your MinGW64 include and lib folders, respectively. The HIDAPI sources can be retrieved from [this repository](https://github.com/libusb/hidapi).
+On Windows, it is necessary to download the hidapi sources and compile them manually using MinGW64. To do so, first download or clone the hidapi sources from [this repository](https://github.com/libusb/hidapi). Then, navigate to the `{HIDAPI_ROOT}/windows` folder. Here, compile the library with `$gcc -I../hidapi -g -c hid.c -o hid.o`. Then, to generate a static library file, do `$ar ru libhidapi.a hid.o`. Finally, copy the header file from `{HIDAPI_ROOT}/hidapi` into your MinGW64 installation's include folder and copy the newly generated static library into the `lib` folder.
 
 # Usage
 On Linux, this tool requires sudo since it accesses USB devices, which are a privileged resource. Eventually, I'll set up a udev rule that will bypass this requirement. On Windows, simply invoke the provided executable from your choice of terminal.
@@ -43,4 +43,4 @@ See the cfg folder for an example DAC5687 config file. Config files are broken u
 See the cfg folder for an example MCP2210 config file. Config files are broken up into "blocks", which contain config elements. The tool parses these files and generates settings which are then written to the MCP2210 at runtime. 
 
 ### Data File
-See the data folder for an example of some canned data for the DDS. In actual operation, these files would be generated from our simulation of the instrument and would represent a single received reflection from the target. The canned data is a simpler waveform to demonstrate functionality. These data are formatted as a series of comma separated values - the first 3 bytes in the file are the address of the SRAM to which the data should be written, and the bottom 4 bytes are the actual data to write.
+See the data folder for an example of some canned data for the DDS. In actual operation, these files would be generated from our simulation of the instrument and would represent a single received reflection from the target. The canned data is a simpler waveform to demonstrate functionality. These data are formatted as a series of comma separated bytes - the first 3 bytes in a row are the SRAM address to which the data should be written, is the data word to write.
