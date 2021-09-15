@@ -74,7 +74,7 @@ bool CSV_Close(CSVFile *file) {
   return true;
 }
 
-char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col) {
+char * CSV_ReadElementSequential(CSVFile *file, unsigned long long row, unsigned long long col) {
   if (file == NULL) {
     fprintf(stderr, "file can't be null\n");
     return NULL;
@@ -115,12 +115,16 @@ char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long
   for (tok = strtok(buf, ","); tok && *tok; tok = strtok(NULL, ",\n")) {
     if (!--col) {
       char * tmp = strdup(tok);
-      fseek(file->fp, 0, SEEK_SET);
       return tmp;
     }
   }
-  fseek(file->fp, 0, SEEK_SET);
   return NULL;
+}
+
+char * CSV_ReadElement(CSVFile *file, unsigned long long row, unsigned long long col) {
+  char * element = CSV_ReadElementSequential(file, row, col);
+  fseek(file->fp, 0, SEEK_SET);
+  return element;
 }
 
 static unsigned long long CSV_NumRows(CSVFile * file) {

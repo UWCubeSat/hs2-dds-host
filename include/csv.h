@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define MAX_CELL_LENGTH       1024
+#define MAX_CELL_LENGTH       64
 
 typedef struct csv_file_st {
   unsigned long long numRows;
@@ -42,6 +42,10 @@ CSVFile * CSV_Open(const char * fileName);
 
 // releases resources associated with input file
 bool CSV_Close(CSVFile *file);
+
+// reads a single element from the CSV. Returns
+// true if successful, false otherwise. Maintains file position.
+char * CSV_ReadElementSequential(CSVFile *file, unsigned long long row, unsigned long long col);
 
 // reads a single element from the CSV. Returns
 // true if successful, false otherwise.
