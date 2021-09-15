@@ -42,8 +42,20 @@ typedef struct cfg_block_t {
     ConfigElement *elements;
 } ConfigBlock;
 
+typedef struct cfg_t {
+    unsigned int num_blocks;
+    ConfigBlock *blocks;
+} Config;
+
+#define COMMENT_CHAR ';'
+
+#define OPEN_BRACK '{'
+#define CLOSE_BRACK '}'
+#define BLOCK_DELIM ':'
+#define ELEM_DELIM '='
+
 // parses the config file and fills in 
-bool CFG_ParseConfigFile(int fd, ConfigBlock *blocks);
+bool CFG_ParseConfigFile(int fd, Config *out);
 
 // creates a config file based on the blocks in the structure
 bool CFG_GenerateConfigFromBlocks(ConfigBlock *blocks, int num_blocks, char * path);

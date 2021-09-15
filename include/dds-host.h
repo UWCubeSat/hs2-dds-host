@@ -162,8 +162,6 @@ const char * DAC_QMC_GAIN_A = "gain_a";
 const char * DAC_QMC_GAIN_B = "gain_b";
 const char * DAC_QMC_PHASE = "phase";
 
-const char COMMENT_CHAR = ';';
-
 typedef struct settings_t {
     MCP2210Settings mcp_settings;
     DAC5687Settings dac_settings;
@@ -175,5 +173,7 @@ typedef struct dds_data_t {
 } Data;
 
 #define MAX_PATH_LEN 64
+
+#define CFG_BASE 10
 
 #endif  // DDS_HOST_H_

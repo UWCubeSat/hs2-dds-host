@@ -126,25 +126,25 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
     return false;
   }
 
-  MCP2210SPITransferSettings tempSettings;
-  memcpy(&tempSettings, &currentSpiSettings, sizeof(MCP2210SPITransferSettings));
+  MCP2210SPITransferSettings tempSpiSettings;
+  memcpy(&tempSpiSettings, &currentSpiSettings, sizeof(MCP2210SPITransferSettings));
 
   // number of bytes in the transfer + 1 for the instruction cycle
-  tempSettings.bitRate = 3000000;
+  tempSpiSettings.bitRate = 3000000;
 
-  tempSettings.bytesPerTransaction = 2;
+  tempSpiSettings.bytesPerTransaction = 2;
 
-  tempSettings.csToDataDelay = 0x01;
+  tempSpiSettings.csToDataDelay = 0x01;
 
-  tempSettings.dataToDataDelay = 0x00;
+  tempSpiSettings.dataToDataDelay = 0x00;
 
-  tempSettings.lastDataToCSDelay = 0x01;
+  tempSpiSettings.lastDataToCSDelay = 0x01;
   
   // CS_DAC is high when idle
-  tempSettings.idleCSValue = 0x0003;
+  tempSpiSettings.idleCSValue = 0x0003;
 
   // CS_DAC is low when active
-  tempSettings.activeCSValue = 0x0002;
+  tempSpiSettings.activeCSValue = 0x0002;
   
 
   MCP2210ChipSettings chipSettings = {0};
@@ -155,7 +155,7 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
   }
 
   chipSettings.gp0Designation = CS;
-  chipSettings.gp1Designation = GPIO;
+  chipSettings.gp1Designation = CS;
   chipSettings.gp5Designation = DF;
 
   chipSettings.defaultGPIODirection = 0x0000;
@@ -172,7 +172,7 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
   unsigned char spiTxBytes[2] = {instrByte, txByte};
   unsigned char rxBuf[2];
 
-  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBuf, &tempSettings) < 0) {
+  if (MCP2210_SpiDataTransfer(handle, 2, spiTxBytes, rxBuf, &tempSpiSettings) < 0) {
     fprintf(stderr, "WriteRegister() failed\n");
     return false;
   } 
