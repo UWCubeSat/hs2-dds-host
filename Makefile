@@ -43,7 +43,7 @@ ifneq (, $(findstring Windows_NT,$(OS)))
 	LIBS 	:= -lhidapi -lsetupapi
 	RM_CMD  := del /Q
 else
-	LIBS 	:= -lhidapi
+	LIBS 	:= -lhidapi-libusb
 	RM_CMD  := rm -rf
 endif
 
