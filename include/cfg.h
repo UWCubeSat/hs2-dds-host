@@ -28,16 +28,25 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#define COMMENT_CHAR ';'
+
+#define OPEN_BRACK '{'
+#define CLOSE_BRACK '}'
+#define BLOCK_DELIM ':'
+#define ELEM_DELIM '='
+
+#define MAX_LENGTH 64
+
 // corresponds with a single key/value pair
 // in a config block
 typedef struct cfg_elmnt_t {
-    char *key;
-    char *value;
+    char key[MAX_LENGTH];
+    char value[MAX_LENGTH];
 } ConfigElement;
 
 // corresponds with a single config block
 typedef struct cfg_block_t {
-    char *key;
+    char key[MAX_LENGTH];
     unsigned int num_elements;
     ConfigElement *elements;
 } ConfigBlock;
@@ -46,13 +55,6 @@ typedef struct cfg_t {
     unsigned int num_blocks;
     ConfigBlock *blocks;
 } Config;
-
-#define COMMENT_CHAR ';'
-
-#define OPEN_BRACK '{'
-#define CLOSE_BRACK '}'
-#define BLOCK_DELIM ':'
-#define ELEM_DELIM '='
 
 // parses the config file and fills in 
 bool CFG_ParseConfigFile(int fd, Config *out);
