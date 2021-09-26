@@ -111,7 +111,7 @@ char * CSV_ReadElementSequential(CSVFile *file, unsigned long long row, unsigned
   memset(buf, '\0', kBufLen);
 
   fgets(buf, sizeof(buf), file->fp);
-  const char * tok;
+  char * tok;
   for (tok = strtok(buf, ","); tok && *tok; tok = strtok(NULL, ",\n")) {
     if (!--col) {
       char * tmp = strdup(tok);
