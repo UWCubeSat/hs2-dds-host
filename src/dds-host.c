@@ -400,12 +400,19 @@ static bool HandleDACConfigOptions(ConfigBlock *blocks, DAC5687Settings *setting
 }
 
 static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
+  int mcp_fd;
+  int dac_fd;
+  DAC5687Settings dac_settings = {0};
+  MCP2210Settings mcp_settings = {0};
+  Config dac_config = {0};
+  Config mcp_config = {0};
+
   if (out == NULL) {
     return false;
   }
 
-  int mcp_fd = open(mcp_cfg, O_RDONLY);
-  int dac_fd = open(dac_cfg, O_RDONLY);
+  mcp_fd = open(mcp_cfg, O_RDONLY);
+  dac_fd = open(dac_cfg, O_RDONLY);
 
   if (mcp_fd < 0) {
     perror("Failed to open the MCP2210 config file.");
@@ -417,9 +424,6 @@ static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
     return false;
   }
 
-  Config dac_config = {0};
-  Config mcp_config = {0};
-
   if (!CFG_ParseConfigFile(mcp_fd, &mcp_cfg)) {
     fprintf(stderr, "Failed to parse MCP config file.\n");
     return false;
@@ -429,9 +433,6 @@ static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
     fprintf(stderr, "Failed to parse DAC config file.\n");
     return false;
   }
-
-  DAC5687Settings dac_settings = {0};
-  MCP2210Settings mcp_settings = {0};
 
   if (!HandleDACConfigOptions(&dac_config, &dac_settings)) {
     fprintf(stderr, "Failed to read out DAC settings.\n");
@@ -445,6 +446,7 @@ static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
   return true;
 }
 
+// verify that arguments are correct for config mode
 static bool CheckConfigArgs(int argc, char *dac_cfg, char *mcp_cfg, char *data_path) {
   // first check that the number of args was right
   if (argc != 8) {
@@ -466,6 +468,7 @@ static bool CheckConfigArgs(int argc, char *dac_cfg, char *mcp_cfg, char *data_p
   return true;
 }
 
+// verify that arguments are correct for interactive mode
 static bool CheckInteractiveArgs(int argc, char *data_path) {
   if (argc != 4) {
     return false;
@@ -477,19 +480,18 @@ static bool CheckInteractiveArgs(int argc, char *data_path) {
   return true;
 }
 
+// configures the attached peripherals
 static bool ConfigureDevices(hid_device *handle, Settings *settings) {
-  if (!MCP2210_Configure(handle, &settings->mcp_settings)) {
-    return false;
-  }
-  if (!DAC5687_Configure(handle, &settings->dac_settings)) {
+  if (!MCP2210_Configure(handle, &settings->mcp_settings) || 
+      !DAC5687_Configure(handle, &settings->dac_settings)) {
     return false;
   }
   return true;
 }
 
 // returns the number of data items, and places data items in data buffer.
-static unsigned int ParseData(Data *data) {
-
+static Data ParseData(CSVFile *data_file) {
+  
 }
 
 static bool LoadData(char *data_path) {
@@ -512,10 +514,14 @@ int main(int argc, char *argv[]) {
   char dac_path[MAX_PATH_LEN];
   char mcp_path[MAX_PATH_LEN];
   char data_path[MAX_PATH_LEN];
+
+  Settings settings = {0};
+  bool success = false;
+
+  hid_device *mcp;
   
   // parse command string
-  int i;
-  for (i = 1; i < argc; i++) {
+  for (int i = 1; i < argc; i++) {
     // extract the command code
     char cmd = argv[i][1] == '-' ? argv[i][2] : argv[i][1];
     switch(cmd) {
@@ -544,8 +550,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  Settings settings = {0};
-  bool success = false;
   if (config) {
     if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
       PrintUsage();
@@ -573,33 +577,20 @@ int main(int argc, char *argv[]) {
   }
 
    // attempt to open an attached HID
-  hid_device *mcp = MCP2210_Init();
+  mcp = MCP2210_Init();
 
   if (mcp == NULL) {
     hid_exit();
     return EXIT_FAILURE;
   }
 
-  // ConfigureDevices(mcp, settings);
+  if (!ConfigureDevices(mcp, &settings)) {
+    return false;
+  }
 
   ParseData(data_path);
 
   // just close it
   MCP2210_Close(mcp);
-
-  // if (!ConfigureDevices(handle, argv[2], argv[4])) {
-  //   MCP2210_Close(handle);
-  //   return EXIT_FAILURE;
-  // }
-  
-  // CSVFile *dataFile = CSV_Open(argv[6]);
-
-  // if (dataFile == NULL) {
-  //   MCP2210_Close(handle);
-  //   return EXIT_FAILURE;
-  // }
-
-  // CSV_Close(dataFile);
-  // MCP2210_Close(handle);
   return EXIT_SUCCESS;
 }
