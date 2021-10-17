@@ -29,6 +29,8 @@
 #include <string.h> // for memset()
 #include <unistd.h> // for access()
 #include <fcntl.h>
+#include <dirent.h>
+#include <sys/types.h>
 
 // HIDAPI
 #include <hidapi.h>
