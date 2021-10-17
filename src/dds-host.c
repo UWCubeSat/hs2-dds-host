@@ -490,18 +490,33 @@ static bool ConfigureDevices(hid_device *handle, Settings *settings) {
 }
 
 // returns the number of data items, and places data items in data buffer.
-static Data ParseData(CSVFile *data_file) {
-  
-}
+static void ParseData(CSVFile *data_file) {
+  // Go file-by-file in data directory, and read out CSV data
+  // first three bytes are address, left-shifted 1 bit
+  // next 4 bytes are data to write to SRAM as 32-bit int (technically a word is 36 bits but we'll ignore that for now)
 
-static bool LoadData(char *data_path) {
-  CSVFile *data = CSV_Open(data_path);
+  for (unsigned long long i = 0; i < 1200; i++) {
+    uint32_t address = 0;
+    uint32_t data = 0;
+    // printf("%d\n", i);
 
-  if (data == NULL) {
-    return false;
+    for (unsigned long long j = 0; j < 7; j++) {
+      char *cell_str = CSV_ReadElement(data_file, i + 1, j + 1);
+      // printf("Cell str: %s at (%d, %d)\n", cell_str, i + 1, j + 1);
+      char *end;
+      uint32_t cell = strtol(cell_str, end, 16);
+      if (j < 3) {
+        // shift into address
+        address |= (cell & 0xFF) << ((2 - j) * 8);
+      } else {
+        // shift into our data
+        data |= (cell & 0xFF) << ((6 - j) * 8);
+      }
+    }
+    address >>= 1;
+    printf("Address: 0x%X, Data: 0x%X\n", address, data);
+    // SRAM_WriteAddress(mcp, address, data);
   }
-
-  return false;
 }
 
 int main(int argc, char *argv[]) {
@@ -550,47 +565,57 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (config) {
-    if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
-      PrintUsage();
-      return EXIT_FAILURE;
-    } else {
-      printf("Entering config mode...\n");
-      success = HandleConfigMode(&settings, dac_path, mcp_path);
-    }
-  } else if (interactive) {
-    if (!CheckInteractiveArgs(argc, data_path)) {
-      PrintUsage();
-      return EXIT_FAILURE;
-    } else {
-      printf("Entering interactive mode...\n");
-      success = HandleInteractiveMode(&settings);
-    } 
-  } else {
-    PrintUsage();
-    return EXIT_FAILURE;
-  }
+  // if (config && !interactive) {
+  //   if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
+  //     PrintUsage();
+  //     return EXIT_FAILURE;
+  //   } else {
+  //     printf("Entering config mode...\n");
+  //     success = HandleConfigMode(&settings, dac_path, mcp_path);
+  //   }
+  // } else if (interactive && !config) {
+  //   if (!CheckInteractiveArgs(argc, data_path)) {
+  //     PrintUsage();
+  //     return EXIT_FAILURE;
+  //   } else {
+  //     printf("Entering interactive mode...\n");
+  //     success = HandleInteractiveMode(&settings);
+  //   } 
+  // } else {
+  //   PrintUsage();
+  //   return EXIT_FAILURE;
+  // }
 
-  if (!success) {
-    if (config) fprintf(stderr, "Failed to read from config files. Check formatting.\n");
-    else if (interactive) fprintf(stderr, "Failed to get all the way through interactive mode. Please start again.\n");
-  }
+  // if (!success) {
+  //   if (config) fprintf(stderr, "Failed to read from config files. Check formatting.\n");
+  //   else if (interactive) fprintf(stderr, "Failed to get all the way through interactive mode. Please start again.\n");
+  // }
 
    // attempt to open an attached HID
-  mcp = MCP2210_Init();
+  // mcp = MCP2210_Init();
 
-  if (mcp == NULL) {
-    hid_exit();
+  // if (mcp == NULL) {
+  //   hid_exit();
+  //   return EXIT_FAILURE;
+  // }
+
+  // if (!ConfigureDevices(mcp, &settings)) {
+  //   return false;
+  // }
+
+  // TODO: wrap this in a while loop for every file
+  DIR *dir_fd;
+  CSVFile *next_data_file = CSV_Open("data/data0.dat");
+  if (next_data_file == NULL) {
     return EXIT_FAILURE;
   }
+  printf("Rows: %d, Cols: %d\n", next_data_file->numRows, next_data_file->numCols);
+  ParseData(next_data_file);
 
-  if (!ConfigureDevices(mcp, &settings)) {
-    return false;
-  }
-
-  ParseData(data_path);
+  // trigger the burst-write from the SRAM to the DAC
 
   // just close it
-  MCP2210_Close(mcp);
+  // MCP2210_Close(mcp);
+  CSV_Close(next_data_file);
   return EXIT_SUCCESS;
 }
