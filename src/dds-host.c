@@ -426,25 +426,25 @@ static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
     return false;
   }
 
-  if (!CFG_ParseConfigFile(mcp_fd, &mcp_cfg)) {
-    fprintf(stderr, "Failed to parse MCP config file.\n");
-    return false;
-  }
+  // if (!CFG_ParseConfigFile(mcp_fd, &mcp_cfg)) {
+  //   fprintf(stderr, "Failed to parse MCP config file.\n");
+  //   return false;
+  // }
   
-  if (!CFG_ParseConfigFile(dac_fd, &dac_cfg)) {
-    fprintf(stderr, "Failed to parse DAC config file.\n");
-    return false;
-  }
+  // if (!CFG_ParseConfigFile(dac_fd, &dac_cfg)) {
+  //   fprintf(stderr, "Failed to parse DAC config file.\n");
+  //   return false;
+  // }
 
-  if (!HandleDACConfigOptions(&dac_config, &dac_settings)) {
-    fprintf(stderr, "Failed to read out DAC settings.\n");
-    return false;
-  }  
+  // if (!HandleDACConfigOptions(&dac_config, &dac_settings)) {
+  //   fprintf(stderr, "Failed to read out DAC settings.\n");
+  //   return false;
+  // }  
 
-  if (!HandleMCPConfigOptions(&mcp_config, &mcp_settings)) {
-    fprintf(stderr, "Failed to read out MCP settings.\n");
-    return false;
-  }
+  // if (!HandleMCPConfigOptions(&mcp_config, &mcp_settings)) {
+  //   fprintf(stderr, "Failed to read out MCP settings.\n");
+  //   return false;
+  // }
   return true;
 }
 
@@ -452,19 +452,23 @@ static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
 static bool CheckConfigArgs(int argc, char *dac_cfg, char *mcp_cfg, char *data_path) {
   // first check that the number of args was right
   if (argc != 8) {
+    fprintf(stderr, "Error - wrong number of arguments in config mode.\n");
     return false;
   }
 
   // check that files exist
-  if (!access(dac_cfg, F_OK)) {
+  if (access(dac_cfg, F_OK) < 0) {
+    fprintf(stderr, "Error - supplied DAC config file doesn't appear to exist.\n");
     return false;
   }
 
-  if (!access(mcp_cfg, F_OK)) {
+  if (access(mcp_cfg, F_OK) < 0) {
+    fprintf(stderr, "Error - supplied MCP config file doesn't appear to exist.\n");
     return false;
   }
 
-  if (!access(data_path, F_OK)) {
+  if (access(data_path, F_OK) < 0) {
+    fprintf(stderr, "Error - supplied data directory file doesn't appear to exist.\n");
     return false;
   }
   return true;
@@ -492,21 +496,21 @@ static bool ConfigureDevices(hid_device *handle, Settings *settings) {
 }
 
 // returns the number of data items, and places data items in data buffer.
-static void ParseData(CSVFile *data_file) {
+static void WriteData(CSVFile *data_file) {
   // Go file-by-file in data directory, and read out CSV data
   // first three bytes are address, left-shifted 1 bit
   // next 4 bytes are data to write to SRAM as 32-bit int (technically a word is 36 bits but we'll ignore that for now)
 
-  for (unsigned long long i = 0; i < 1200; i++) {
+  printf("starting read...\n");
+  for (unsigned long long i = 0; i < data_file->numRows; i++) {
     uint32_t address = 0;
     uint32_t data = 0;
     // printf("%d\n", i);
 
-    for (unsigned long long j = 0; j < 7; j++) {
+    for (unsigned long long j = 0; j < data_file->numCols; j++) {
       char *cell_str = CSV_ReadElement(data_file, i + 1, j + 1);
-      // printf("Cell str: %s at (%d, %d)\n", cell_str, i + 1, j + 1);
       char *end;
-      uint32_t cell = strtol(cell_str, end, 16);
+      uint32_t cell = strtol(cell_str, &end, 16);
       if (j < 3) {
         // shift into address
         address |= (cell & 0xFF) << ((2 - j) * 8);
@@ -567,57 +571,79 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // if (config && !interactive) {
-  //   if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
-  //     PrintUsage();
-  //     return EXIT_FAILURE;
-  //   } else {
-  //     printf("Entering config mode...\n");
-  //     success = HandleConfigMode(&settings, dac_path, mcp_path);
-  //   }
-  // } else if (interactive && !config) {
-  //   if (!CheckInteractiveArgs(argc, data_path)) {
-  //     PrintUsage();
-  //     return EXIT_FAILURE;
-  //   } else {
-  //     printf("Entering interactive mode...\n");
-  //     success = HandleInteractiveMode(&settings);
-  //   } 
-  // } else {
-  //   PrintUsage();
-  //   return EXIT_FAILURE;
-  // }
-
-  // if (!success) {
-  //   if (config) fprintf(stderr, "Failed to read from config files. Check formatting.\n");
-  //   else if (interactive) fprintf(stderr, "Failed to get all the way through interactive mode. Please start again.\n");
-  // }
-
-   // attempt to open an attached HID
-  // mcp = MCP2210_Init();
-
-  // if (mcp == NULL) {
-  //   hid_exit();
-  //   return EXIT_FAILURE;
-  // }
-
-  // if (!ConfigureDevices(mcp, &settings)) {
-  //   return false;
-  // }
-
-  // TODO: wrap this in a while loop for every file
-  DIR *dir_fd;
-  CSVFile *next_data_file = CSV_Open("data/data0.dat");
-  if (next_data_file == NULL) {
+  if (config && !interactive) {
+    strcpy(dac_path, argv[3]);
+    strcpy(mcp_path, argv[5]);
+    strcpy(data_path, argv[7]);
+    if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
+      PrintUsage();
+      return EXIT_FAILURE;
+    } else {
+      printf("Entering config mode...\n");
+      success = HandleConfigMode(&settings, dac_path, mcp_path);
+    }
+  } else if (interactive && !config) {
+    if (!CheckInteractiveArgs(argc, data_path)) {
+      PrintUsage();
+      return EXIT_FAILURE;
+    } else {
+      printf("Entering interactive mode...\n");
+      success = HandleInteractiveMode(&settings);
+    } 
+  } else {
+    PrintUsage();
     return EXIT_FAILURE;
   }
-  printf("Rows: %d, Cols: %d\n", next_data_file->numRows, next_data_file->numCols);
-  ParseData(next_data_file);
 
+  if (!success) {
+    if (config) fprintf(stderr, "Failed to read from config files. Check formatting.\n");
+    else if (interactive) fprintf(stderr, "Failed to get all the way through interactive mode. Please start again.\n");
+    return EXIT_FAILURE;
+  }
+
+  // attempt to open an attached HID
+  mcp = MCP2210_Init();
+
+  if (mcp == NULL) {
+    hid_exit();
+    return EXIT_FAILURE;
+  }
+
+  // if (!ConfigureDevices(mcp, &settings)) {
+  //   return EXIT_FAILURE;
+  // }
+
+  DIR *dir_fd = opendir(data_path);
+  if (dir_fd == NULL) {
+    fprintf(stderr, "Failed to open data directory.\n");
+  }
+  struct dirent *dir_entry;
+  CSVFile *next_data_file;
+  chdir(data_path);
+  while ((dir_entry = readdir(dir_fd))) {
+    if (!strcmp (dir_entry->d_name, "."))
+        continue;
+    if (!strcmp (dir_entry->d_name, ".."))    
+        continue;
+    
+    printf("File name: %s\n", dir_entry->d_name);
+
+    next_data_file = CSV_Open(dir_entry->d_name);
+
+    if (next_data_file == NULL) {
+      fprintf(stderr, "Failed to open next data file\n");
+      return EXIT_FAILURE;
+    }
+
+    printf("Rows: %d, Cols: %d\n", next_data_file->numRows, next_data_file->numCols);
+    WriteData(next_data_file);
+    printf("Data written\n");
+    CSV_Close(next_data_file);
+  }
+  fprintf(stderr, "No more files...\n");
   // trigger the burst-write from the SRAM to the DAC
+  // TODO: pull GP7 high on MCP2210
 
-  // just close it
-  // MCP2210_Close(mcp);
-  CSV_Close(next_data_file);
+  MCP2210_Close(mcp);
   return EXIT_SUCCESS;
 }

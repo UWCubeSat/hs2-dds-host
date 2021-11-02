@@ -139,6 +139,7 @@ static bool CFG_ParseBuffer(unsigned char *buf, Config *out) {
 }
 
 bool CFG_ParseConfigFile(int fd, Config *out) {
+    printf("attempting to parse config file\n");
     if (fd < 0) {
         fprintf(stderr, "Invalid file descriptor.\n");
         return false;
@@ -159,21 +160,30 @@ bool CFG_ParseConfigFile(int fd, Config *out) {
     int bytes_read = 0;
     // allocate sufficient buffer with space for null-character
     char *buf = (char *) malloc(info.st_size + 1);
+    printf("File size: %d", info.st_size);
     memset(buf, '\0', info.st_size + 1);
 
+    int reads = 0;
     const size_t kReadSize = 1024;
     while (bytes_read < info.st_size) {
         // read out some bytes into our buffer
         size_t r_bytes = read(fd, buf + bytes_read, kReadSize);
+        if (bytes_read == 0) {
+            printf("%d\n", reads);
+            perror("Failed to read.");
+        }
         if (bytes_read < 0) {
             perror("Failed to read from file.");
             free(buf);
             return false;
         }
+        reads++;
         bytes_read += r_bytes;
     }
+    printf("read into mem\n");
     bool status = CFG_ParseBuffer(buf, out);
     free(buf);
+    printf("success!\n");
     return status;
 }
 
