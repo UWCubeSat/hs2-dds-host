@@ -70,6 +70,20 @@ static bool HandleInteractiveMode(Settings *out) {
 }
 
 static bool HandleMCPConfigOptions(ConfigBlock *blocks, MCP2210Settings *settings) {
+  // spicy if-else if-else block
+  for (int i = 0; i < blocks->num_elements; i++) {
+    ConfigBlock *block = blocks + i;
+    if (strcmp(block->key, MCP_USB_CFG_KEY) == 0) {
+      HandleMCPUSBBlock(block, settings);
+    } else if (strcmp(block->key, MCP_CHIP_CFG_KEY) == 0) {
+      HandleMCPChipBlock(block, settings);
+    } else if (strcmp(block->key, MCP_SPI_CFG_KEY) == 0) {
+      HandleMCPSPIBlock(block, settings);
+    } else {
+      fprintf(stderr, "Encountered unknown block: %s.\n", block->key);
+      return false;
+    }
+  }
   return true;
 }
 
@@ -281,14 +295,28 @@ static bool HandleDACConfig3Block(ConfigBlock *block, DAC5687Settings *settings)
 static bool HandleDACSyncCntlBlock(ConfigBlock *block, DAC5687Settings *settings) {
   for (int i = 0; i < block->num_elements; i++) {
     ConfigElement *element = block->elements + i;
+    char * end;
+    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
     if (strcmp(element->key, DAC_SYNCCNTL_SYNC_PHSTR) == 0) {
-      
+      if (val_int > 1) {
+        return false;
+      }
+      settings->sync_cntl.sync_phstr = (uint8_t) val_int;
     } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_NCO) == 0) {
-      
+      if (val_int > 1) {
+        return false;
+      }
+      settings->sync_cntl.sync_nco = (uint8_t) val_int;
     } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_CM) == 0) {
-      
+      if (val_int > 1) {
+        return false;
+      }
+      settings->sync_cntl.sync_cm = (uint8_t) val_int;
     } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_FIFO) == 0) {
-      
+      if (val_int > 7) {
+        return false;
+      }
+      settings->sync_cntl.sync_fifo = (uint8_t) val_int;
     } else {
       fprintf(stderr, "Unknown setting: %s\n", element->key);
       return false;
@@ -300,10 +328,18 @@ static bool HandleDACSyncCntlBlock(ConfigBlock *block, DAC5687Settings *settings
 static bool HandleDACNCOBlock(ConfigBlock *block, DAC5687Settings *settings) {
   for (int i = 0; i < block->num_elements; i++) {
     ConfigElement *element = block->elements + i;
+    char *end;
+    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
     if (strcmp(element->key, DAC_NCO_FREQ) == 0) {
-      
+      if (val_int > ((0b1 << 32) - 1)) { // 2^32 - 1
+        return false;
+      }
+      settings->nco_freq = (uint32_t) val_int;
     } else if (strcmp(element->key, DAC_NCO_PHASE) == 0) {
-      
+      if (val_int > ((0b1 << 16) - 1)) {  // 2^16 - 1
+        return false;
+      }
+      settings->nco_phase = (uint16_t) val_int;
     } else {
       fprintf(stderr, "Unknown setting: %s\n", element->key);
       return false;
@@ -315,14 +351,18 @@ static bool HandleDACNCOBlock(ConfigBlock *block, DAC5687Settings *settings) {
 static bool HandleDACDACABlock(ConfigBlock *block, DAC5687Settings *settings) {
   for (int i = 0; i < block->num_elements; i++) {
     ConfigElement *element = block->elements + i;
+    char *end;
+    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
     if (strcmp(element->key, DAC_DAC_OFFSET) == 0) {
-      
+      if (val_int > ((0b1 << 12) - 1)) {  // 2^12 - 1
+        return false;
+      }
+      settings->dac_a_off = (uint16_t) val_int;
     } else if (strcmp(element->key, DAC_DAC_GAIN) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLA) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLB) == 0) {
-      
+      if (val_int > ((0b1 << 11) - 1)) {  // 2^11 - 1
+        return false;
+      }
+      settings->dac_a_gain = (uint16_t) val_int;
     } else {
       fprintf(stderr, "Unknown setting: %s\n", element->key);
       return false;
@@ -334,14 +374,18 @@ static bool HandleDACDACABlock(ConfigBlock *block, DAC5687Settings *settings) {
 static bool HandleDACDACBBlock(ConfigBlock *block, DAC5687Settings *settings) {
   for (int i = 0; i < block->num_elements; i++) {
     ConfigElement *element = block->elements + i;
-    if (strcmp(element->key, DAC_VERSION_SLEEP_A) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_SLEEP_B) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLA) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLB) == 0) {
-      
+    char *end;
+    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
+    if (strcmp(element->key, DAC_DAC_OFFSET) == 0) {
+      if (val_int > ((0b1 << 12) - 1)) {  // 2^12 - 1
+        return false;
+      }
+      settings->dac_b_off = (uint16_t) val_int;
+    } else if (strcmp(element->key, DAC_DAC_GAIN) == 0) {
+      if (val_int > ((0b1 << 11) - 1)) {  // 2^11 - 1
+        return false;
+      }
+      settings->dac_b_gain = (uint16_t) val_int;
     } else {
       fprintf(stderr, "Unknown setting: %s\n", element->key);
       return false;
@@ -353,14 +397,23 @@ static bool HandleDACDACBBlock(ConfigBlock *block, DAC5687Settings *settings) {
 static bool HandleDACQMCBlock(ConfigBlock *block, DAC5687Settings *settings) {
   for (int i = 0; i < block->num_elements; i++) {
     ConfigElement *element = block->elements + i;
-    if (strcmp(element->key, DAC_VERSION_SLEEP_A) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_SLEEP_B) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLA) == 0) {
-      
-    } else if (strcmp(element->key, DAC_VERSION_HPLB) == 0) {
-      
+    char *end;
+    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
+    if (strcmp(element->key, DAC_QMC_GAIN_A) == 0) {
+      if (val_int > ((0b1 << 10) - 1)) {  // 2^10 - 1
+        return false;
+      }
+      settings->qmc_a_gain = (uint16_t) val_int;
+    } else if (strcmp(element->key, DAC_QMC_GAIN_B) == 0) {
+      if (val_int > ((0b1 << 10) - 1)) {  // 2^10 - 1
+        return false;
+      }
+      settings->qmc_b_gain = (uint16_t) val_int;
+    } else if (strcmp(element->key, DAC_QMC_PHASE) == 0) {
+      if (val_int > ((0b1 << 9) - 1)) { // 2^9 - 1
+        return false;
+      }
+      settings->qmc_phase = (uint16_t) val_int;
     } else {
       fprintf(stderr, "Unknown setting: %s\n", element->key);
       return false;
