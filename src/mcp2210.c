@@ -522,7 +522,6 @@ int MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
 }
 
 int MCP2210_WriteGPIOValues(hid_device *handle, uint16_t newGPIOValues) {
-  uint16_t currentGPIOValues;
   uint8_t txBuf[MCP2210_REPORT_LEN];
   uint8_t rxBuf[MCP2210_REPORT_LEN];
 

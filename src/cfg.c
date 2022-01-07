@@ -151,7 +151,7 @@ static bool HandleMCPSPIBlock(MCP2210Settings *settings, const char *name,
     char * end;
     uint64_t val_int = (uint64_t) strtol(value, &end, CFG_BASE);
     if (key_match(name, MCP_SPI_BIT_RATE)) {
-      if (val_int > ((1UL << 32) - 1)) {  // 2^32 - 1
+      if (val_int > ((0b1ULL << 32) - 1)) {  // 2^32 - 1
         return 0;
       }
       settings->spi.bitRate = (uint32_t) val_int;
@@ -430,7 +430,7 @@ static int HandleDACNCOBlock(DAC5687Settings *settings, const char *name,
     char *end;
     uint64_t val_int = strtol(value, &end, CFG_BASE);
     if (key_match(name, DAC_NCO_FREQ)) {
-      if (val_int > ((0b1 << 32) - 1)) { // 2^32 - 1
+      if (val_int > ((0b1ULL << 32) - 1)) { // 2^32 - 1
         return 0;
       }
       settings->nco_freq = (uint32_t) val_int;

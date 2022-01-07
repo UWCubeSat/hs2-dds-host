@@ -159,8 +159,8 @@ static void WriteData(hid_device *handle, CSVFile *data_file) {
       }
     }
     address >>= 1;
-    // printf("Address: 0x%X, Data: 0x%X\n", address, data);
-    SRAM_WriteAddress(handle, address, data);
+    printf("Address: 0x%X, Data: 0x%X\n", address, data);
+    // SRAM_WriteAddress(handle, address, data);
   }
 }
 
@@ -168,9 +168,6 @@ int main(int argc, char *argv[]) {
   // flags for command line switches
   bool interactive = false;
   bool config = false;
-  bool dac_config = false;
-  bool mcp_config = false;
-  bool data = false;
   char dac_path[MAX_PATH_LEN];
   char mcp_path[MAX_PATH_LEN];
   char data_path[MAX_PATH_LEN];
@@ -192,15 +189,8 @@ int main(int argc, char *argv[]) {
         interactive = true;
         break;
       case 'd':
-        dac_config = true;
-        i++;
-        break;
       case 'm':
-        mcp_config = true;
-        i++;
-        break;
       case 'D':
-        data = true;
         i++;
         break;
       default:
@@ -274,9 +264,8 @@ int main(int argc, char *argv[]) {
       return EXIT_FAILURE;
     }
 
-    printf("Rows: %d, Cols: %d\n", next_data_file->numRows, next_data_file->numCols);
     WriteData(mcp, next_data_file);
-    printf("Data written\n");
+    printf("Wrote contents of %s to SRAM\n", dir_entry->d_name);
     CSV_Close(next_data_file);
   }
   printf("No more files...\n");
