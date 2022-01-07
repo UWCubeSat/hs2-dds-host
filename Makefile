@@ -40,10 +40,10 @@ INCDIR  := include
 
 # check which platform we're on
 ifneq (, $(findstring Windows_NT,$(OS)))
-	LIBS 	:= -lhidapi -lsetupapi
+	LIBS 	:= -lhidapi -lsetupapi -linih
 	RM_CMD  := del /Q
 else
-	LIBS 	:= -lhidapi-libusb
+	LIBS 	:= -lhidapi-libusb -linih
 	RM_CMD  := rm -rf
 endif
 
