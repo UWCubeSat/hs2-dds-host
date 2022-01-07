@@ -66,7 +66,7 @@ Usage: dds-host <--i | --c [-d <dac_config_file_path> -m <mcp_config_file_path> 
 ### Device Configuration
 In `config` mode, both the MCP2210 and DAC5687 can be configured via a config file in the [INI Format](https://en.wikipedia.org/wiki/INI_file). DDS-Host will read from these configuration files at runtime and write the configuration to the corresponding device. Currently this is the only mode supported. Eventually, I will include an `interactive` mode which will allow the user to choose settings interactively on the command line.
 
-Check out [these example configs](../blobs/develop/cfg) for an idea of what settings can be configured. Also check out the datasheets ([MCP2210](https://ww1.microchip.com/downloads/en/DeviceDoc/22288A.pdf) and [DAC5687](https://www.ti.com/lit/gpn/dac5687)) for these devices to learn about the numerical range for each configuration item.
+Check out [these example configs](../tree/develop/cfg) for an idea of what settings can be configured. Also check out the datasheets ([MCP2210](https://ww1.microchip.com/downloads/en/DeviceDoc/22288A.pdf) and [DAC5687](https://www.ti.com/lit/gpn/dac5687)) for these devices to learn about the numerical range for each configuration item.
 
 ### Data Files
 See the data folder for an example of some canned data for the DDS. In actual operation, these files would be generated from our simulation of the instrument and would represent a single received reflection from the target. The canned data is a simpler waveform to demonstrate functionality. These data are formatted as a series of comma separated bytes: the first 3 bytes in a row are the SRAM address to which the data should be written, the last 4 bytes are the data word to write.
