@@ -84,7 +84,7 @@
 // SPI Data transfer stuff
 #define MAX_TRANSACTION_BYTES       65536
 #define MAX_PACKET_BYTES            60
-#define MAX_ATTEMPTS                 2000
+#define MAX_ATTEMPTS                2000
 
 // bytes in an MCP2210 report
 #define MCP2210_REPORT_LEN          64
