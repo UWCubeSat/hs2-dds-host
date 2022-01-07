@@ -136,7 +136,7 @@ static int ConfigureDevices(hid_device *handle, Settings *settings) {
 }
 
 // returns the number of data items, and places data items in data buffer.
-static void WriteData(CSVFile *data_file) {
+static void WriteData(hid_device *handle, CSVFile *data_file) {
   // Go file-by-file in data directory, and read out CSV data
   // first three bytes are address, left-shifted 1 bit
   // next 4 bytes are data to write to SRAM as 32-bit int (technically a word is 36 bits but we'll ignore that for now)
@@ -160,7 +160,7 @@ static void WriteData(CSVFile *data_file) {
     }
     address >>= 1;
     // printf("Address: 0x%X, Data: 0x%X\n", address, data);
-    SRAM_WriteAddress(mcp, address, data);
+    SRAM_WriteAddress(handle, address, data);
   }
 }
 
@@ -275,7 +275,7 @@ int main(int argc, char *argv[]) {
     }
 
     printf("Rows: %d, Cols: %d\n", next_data_file->numRows, next_data_file->numCols);
-    WriteData(next_data_file);
+    WriteData(mcp, next_data_file);
     printf("Data written\n");
     CSV_Close(next_data_file);
   }
