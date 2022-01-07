@@ -39,6 +39,8 @@
 #define VID                         0x04D8
 #define PID                         0x00DE
 
+#define TIMEOUT                     0 // ms
+
 // MCP2210 Access Control modes
 #define UNPROTECTED                 0x00
 #define PROTECTED                   0x40
@@ -81,6 +83,8 @@
 
 // SPI Data transfer stuff
 #define MAX_TRANSACTION_BYTES       65536
+#define MAX_PACKET_BYTES            60
+#define MAX_ATTEMPTS                 2000
 
 // bytes in an MCP2210 report
 #define MCP2210_REPORT_LEN          64
@@ -125,18 +129,6 @@ typedef struct mcp2210_key_settings_st {
   uint16_t pid;
 } MCP2210USBKeySettings;
 
-// Convenient members for setting access password
-typedef struct mcp2210_access_pass_st {
-  uint8_t char0;
-  uint8_t char1;
-  uint8_t char2;
-  uint8_t char3;
-  uint8_t char4;
-  uint8_t char5;
-  uint8_t char6;
-  uint8_t char7;
-} MCP2210AccessPassword;
-
 // Convenient members for configuring Chip Settings
 typedef struct mcp2210_chip_settings_st {
   uint8_t gp0Designation;
@@ -152,7 +144,9 @@ typedef struct mcp2210_chip_settings_st {
   uint16_t defaultGPIODirection;
   uint8_t chipSettings;
   uint8_t chipAccessControl;
-  MCP2210AccessPassword pass;
+
+  // 8 bytes long plus an extra for null terminator
+  char pass[9];
 } MCP2210ChipSettings;
 
 // Convenient members for configuring SPI Transfer Settings
@@ -208,7 +202,7 @@ int MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings *new
 int MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSettings, bool vm);
 
 // sends the access password. only needs to be called if chip has conditional access enabled.
-int MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass);
+int MCP2210_SendAccessPassword(hid_device *handle, const char *pass);
 
 // updates the manufacturer string that the MCP2210 displays when enumerated. returns
 // false if write fails, true otherwise.

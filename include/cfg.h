@@ -184,6 +184,10 @@ int CFG_HandleMCP2210Config(void *user, const char *section, const char *name,
 int CFG_HandleDAC5687Config(void *user, const char *section, const char *name,
                             const char *value);
 
+int CFG_GenerateMCP2210Config(MCP2210Settings settings, const char *path);
+
+int CFG_GenerateDAC5687Config(DAC5687Settings settings, const char *path);
+
 void CFG_PrintMCP2210Config(MCP2210Settings settings);
 
 void CFG_PrintDAC5687Config(DAC5687Settings settings);

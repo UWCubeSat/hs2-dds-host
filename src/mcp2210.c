@@ -38,7 +38,8 @@
 // MCP2210
 #include "mcp2210.h"
 
-static int MCP2210_GenericWriteRead(hid_device *handle, uint8_t *txBuf, uint8_t *rxBuf) {
+static int MCP2210_GenericWriteRead(hid_device *handle, uint8_t *txBuf, uint8_t *rxBuf,
+                                    unsigned int timeout) {
   if (handle == NULL) {
     fprintf(stderr, "GenericWriteRead()-> handle can't be null\n");
     return -1;
@@ -61,9 +62,13 @@ static int MCP2210_GenericWriteRead(hid_device *handle, uint8_t *txBuf, uint8_t 
     return -1;
   }
 
-  res = hid_read(handle, rxBuf, MCP2210_REPORT_LEN);
+  if (timeout) {
+    res = hid_read_timeout(handle, rxBuf, MCP2210_REPORT_LEN, timeout);
+  } else {
+    res = hid_read(handle, rxBuf, MCP2210_REPORT_LEN);
+  }
 
-  if (res < 0) {
+  if (res < 0 || (timeout && res == 0)) {
     fprintf(stderr, "GenericWriteRead()->hid_read() failed\n");
     return -1;
   }
@@ -163,7 +168,7 @@ int MCP2210_WriteSpiSettings(hid_device *handle, const MCP2210SPITransferSetting
 
   txBuf[20] = newSettings->SPIMode;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *currentSettings, bool vm) {
@@ -186,7 +191,7 @@ int MCP2210_ReadSpiSettings(hid_device *handle, MCP2210SPITransferSettings *curr
     txBuf[1] = SpiSettings;
   }
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, 0);
 
   if (res == 0x00) {
     currentSettings->bitRate = rxBuf[4] | (rxBuf[5] << 8) | (rxBuf[6] << 16) | (rxBuf[7] << 24);
@@ -230,7 +235,7 @@ int MCP2210_WriteUSBSettings(hid_device *handle, const MCP2210USBKeySettings *ne
   txBuf[8] = newSettings->powerOption;
   txBuf[9] = newSettings->requestedCurrent;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadUSBSettings(hid_device *handle, MCP2210USBKeySettings *currentSettings) {
@@ -253,7 +258,7 @@ int MCP2210_ReadUSBSettings(hid_device *handle, MCP2210USBKeySettings *currentSe
   txBuf[0] = GetNVRAMSettings;
   txBuf[1] = USBSettings;
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     currentSettings->vid = txBuf[4] | (txBuf[5] << 8);
@@ -312,7 +317,11 @@ int MCP2210_WriteChipSettings(hid_device *handle, const MCP2210ChipSettings *new
 
   txBuf[18] = newSettings->chipAccessControl;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  if (newSettings->chipAccessControl == PROTECTED) {
+      memcpy(&txBuf[19], newSettings->pass, strlen(newSettings->pass));
+  }
+
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSettings, bool vm) {
@@ -339,7 +348,7 @@ int MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSet
     txBuf[1] = ChipSettings;
   }
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     currentSettings->gp0Designation = rxBuf[4];
@@ -362,9 +371,21 @@ int MCP2210_ReadChipSettings(hid_device *handle, MCP2210ChipSettings *currentSet
   return res;
 }
 
-int MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass) {
+int MCP2210_SendAccessPassword(hid_device *handle, const char *pass) {
+  int len;
+
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
+    return -1;
+  }
+
+  if (pass == NULL) {
+    fprintf(stderr, "pass must not be null\n");
+    return -1;
+  }
+  
+  if ((len = strlen(pass)) > 8) {
+    fprintf(stderr, "password too long\n");
     return -1;
   }
 
@@ -376,9 +397,9 @@ int MCP2210_SendAccessPassword(hid_device *handle, MCP2210AccessPassword pass) {
 
   txBuf[0] = SendPassword;
 
-  memcpy(&txBuf[4], &pass, sizeof(pass));
+  memcpy(&txBuf[4], pass, strlen(pass));
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size_t nameLen) {
@@ -418,7 +439,7 @@ int MCP2210_WriteManufacturerName(hid_device *handle, const char *newName, size_
     txBuf[i + 6] = newName[i / 2];
   }
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadManufacturerName(hid_device *handle, char currentName[30]) {
@@ -440,7 +461,7 @@ int MCP2210_ReadManufacturerName(hid_device *handle, char currentName[30]) {
 
   txBuf[0] = GetNVRAMSettings;
   txBuf[1] = ManufacturerName;
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
   if (res == 0x00) {
     int i;
     for (i = 0; i < rxBuf[4]; i += 2) {
@@ -488,7 +509,7 @@ int MCP2210_WriteProductName(hid_device *handle, const char *newName, size_t nam
     txBuf[i + 6] = newName[i / 2];
   }
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
@@ -510,7 +531,7 @@ int MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
 
   txBuf[0] = GetNVRAMSettings;
   txBuf[1] = ProductName;
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
   if (res == 0x00) {
     int i;
     for (i = 0; i < rxBuf[4]; i += 2) {
@@ -538,7 +559,7 @@ int MCP2210_WriteGPIOValues(hid_device *handle, uint16_t newGPIOValues) {
   txBuf[4] = (uint8_t) (newGPIOValues & 0xFF);
   txBuf[5] = (uint8_t) ((newGPIOValues & 0xFF00) >> 8);
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadGPIOValues(hid_device *handle, uint16_t *currentGPIOValues) {
@@ -560,7 +581,7 @@ int MCP2210_ReadGPIOValues(hid_device *handle, uint16_t *currentGPIOValues) {
 
   txBuf[0] = GetCurrentGPIOPinVal;
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     *currentGPIOValues = rxBuf[4] | (rxBuf[5] << 8);
@@ -585,7 +606,7 @@ int MCP2210_WriteGPIODirections(hid_device *handle, uint16_t newGPIODirections) 
   txBuf[4] = (uint8_t) (newGPIODirections & 0xFF);
   txBuf[5] = (uint8_t) ((newGPIODirections & 0xFF00) >> 8);
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadGPIODirections(hid_device *handle, uint16_t *currentGPIODirections) {
@@ -607,7 +628,7 @@ int MCP2210_ReadGPIODirections(hid_device *handle, uint16_t *currentGPIODirectio
 
   txBuf[0] = GetCurrentGPIOPinVal;
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     *currentGPIODirections = rxBuf[4] | (rxBuf[5] << 8);
@@ -637,7 +658,7 @@ int MCP2210_WriteEEPROM(hid_device *handle, unsigned char addr, unsigned char by
   txBuf[1] = addr;
   txBuf[2] = byte;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadEEPROM(hid_device *handle, unsigned char addr, unsigned char *byte) {
@@ -666,7 +687,7 @@ int MCP2210_ReadEEPROM(hid_device *handle, unsigned char addr, unsigned char *by
 
   txBuf[1] = addr;
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     *byte = rxBuf[3];
@@ -696,7 +717,7 @@ int MCP2210_ReadInterruptCount(hid_device *handle, unsigned int *interrupts, boo
     txBuf[1] = 0x01;
   }
 
-  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
   if (res == 0x00) {
     *interrupts = rxBuf[4] | (rxBuf[5] << 8);
@@ -709,6 +730,13 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
                               unsigned char *txData,
                               unsigned char *rxData,
                               MCP2210SPITransferSettings *settings) {
+  unsigned int bytesLeft;
+  unsigned int rxBytes;
+  int count;
+  int res;
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return -1;
@@ -747,11 +775,8 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
   // we can transfer at most 60 bytes per spi transfer command,
   // so we need a running total of how many bytes we've sent
 
-  unsigned int bytesLeft = txBytes;
-  unsigned int rxBytes = 0;
-  
-  uint8_t txBuf[MCP2210_REPORT_LEN];
-  uint8_t rxBuf[MCP2210_REPORT_LEN];
+  bytesLeft = txBytes;
+  rxBytes = 0;
 
   memset(txBuf, 0, MCP2210_REPORT_LEN);
   memset(rxBuf, 0, MCP2210_REPORT_LEN);
@@ -759,17 +784,17 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
   // start writing
   // each loop is a new attempt to transfer a packet
   txBuf[0] = SpiDataTransfer;
-  int count = 0;
+  count = 0;
   do { 
-    if (bytesLeft >= 60) {
-      txBuf[1] = 60;
-      memcpy(&txBuf[4], (txData + txBytes - bytesLeft), 60);
+    if (bytesLeft > MAX_PACKET_BYTES) {
+      txBuf[1] = MAX_PACKET_BYTES;
+      memcpy(&txBuf[4], (txData + txBytes - bytesLeft), MAX_PACKET_BYTES);
     } else {
       txBuf[1] = bytesLeft;
       memcpy(&txBuf[4], (txData + txBytes - bytesLeft), bytesLeft);
     }
 
-    int res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+    res = MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 
     if (res == 0x00 && rxBuf[3] == 0x10) {
       bytesLeft -= txBuf[1];
@@ -784,9 +809,9 @@ int MCP2210_SpiDataTransfer(hid_device *handle,
       rxBytes += rxBuf[2];
     }
     count++;
-  } while (count < 1000 && (rxBuf[3] == 0x30 || rxBuf[3] == 0x20));
+  } while (count < MAX_ATTEMPTS && (rxBuf[3] == 0x30 || rxBuf[3] == 0x20));
 
-  if (count == 1000) {
+  if (count == MAX_ATTEMPTS) {
     fprintf(stderr, "SPI transfer timed out\n");
     return -1;
   }
@@ -807,7 +832,7 @@ int MCP2210_RequestSpiBusRelease(hid_device *handle) {
 
   txBuf[0] = ReleaseSpiBus;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_CancelSpiDataTransfer(hid_device *handle) {
@@ -824,7 +849,7 @@ int MCP2210_CancelSpiDataTransfer(hid_device *handle) {
 
   txBuf[0] = CancelSpiDataTransfer;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 int MCP2210_ReadChipStatus(hid_device *handle) {
@@ -841,7 +866,7 @@ int MCP2210_ReadChipStatus(hid_device *handle) {
 
   txBuf[0] = GetChipStatus;
 
-  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf);
+  return MCP2210_GenericWriteRead(handle, txBuf, rxBuf, TIMEOUT);
 }
 
 void MCP2210_Close(hid_device *handle) {

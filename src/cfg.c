@@ -1,3 +1,27 @@
+/*
+ * MIT License
+ * 
+ * Copyright (c) 2021 Eli Reed
+ * 
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ * 
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * 
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 // C
 #include <stdint.h>
 #include <stdio.h>
@@ -54,7 +78,7 @@ static int HandleMCPUSBBlock(MCP2210Settings *settings, const char *name,
       }
       settings->usb.pid = (uint16_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown MCP2210 USB setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -138,9 +162,12 @@ static int HandleMCPChipBlock(MCP2210Settings *settings, const char *name,
       }
       settings->chip.chipAccessControl |= ((uint8_t) val_int);
     } else if (key_match(name, MCP_CHIP_PASS)) {
-      memcpy(&settings->chip.pass, value, strlen(value));
+      if (strlen(value) > 8) {
+        return 0;
+      }
+      strcpy(settings->chip.pass, value);
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown MCP2210 chip setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -193,7 +220,7 @@ static bool HandleMCPSPIBlock(MCP2210Settings *settings, const char *name,
       }
       settings->spi.lastDataToCSDelay = (uint8_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown MCP2210 SPI setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -224,7 +251,7 @@ static int HandleDACVersionBlock(DAC5687Settings *settings, const char *name,
         }
         settings->version.hplb = (uint8_t) val_int;
     } else {
-        fprintf(stderr, "Unknown setting: %s\n", name);
+        fprintf(stderr, "Unknown DAC5687 Version setting: %s\n", name);
         return 0;
     }
   return 1;
@@ -265,7 +292,7 @@ static int HandleDACConfig0Block(DAC5687Settings *settings, const char *name,
         }
         settings->config_0.fifo_bypass = (uint8_t) val_int;
     } else {
-        fprintf(stderr, "Unknown setting: %s\n", name);
+        fprintf(stderr, "Unknown DAC5687 Config0 setting: %s\n", name);
         return 0;
     }
     return 1;
@@ -316,7 +343,7 @@ static int HandleDACConfig1Block(DAC5687Settings *settings, const char *name,
       }
       settings->config_1.full_bypass = (uint8_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 Config1 setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -352,7 +379,7 @@ static int HandleDACConfig2Block(DAC5687Settings *settings, const char *name,
       }
       settings->config_2.invsinc = (uint8_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 Config2 setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -388,7 +415,7 @@ static int HandleDACConfig3Block(DAC5687Settings *settings, const char *name,
       }
       settings->config_3.counter_mode = (uint8_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 Config3 setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -419,7 +446,7 @@ static int HandleDACSyncCntlBlock(DAC5687Settings *settings, const char *name,
       }
       settings->sync_cntl.sync_fifo = (uint8_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 SyncCntl setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -440,7 +467,7 @@ static int HandleDACNCOBlock(DAC5687Settings *settings, const char *name,
       }
       settings->nco_phase = (uint16_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 NCO setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -461,7 +488,7 @@ static int HandleDACDACABlock(DAC5687Settings *settings, const char *name,
       }
       settings->dac_a_gain = (uint16_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 DACA setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -482,7 +509,7 @@ static bool HandleDACDACBBlock(DAC5687Settings *settings, const char *name,
       }
       settings->dac_b_gain = (uint16_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", value);
+      fprintf(stderr, "Unknown DAC5687 DACB setting: %s\n", value);
       return 0;
     }
     return 1;
@@ -508,7 +535,7 @@ static bool HandleDACQMCBlock(DAC5687Settings *settings, const char *name,
       }
       settings->qmc_phase = (uint16_t) val_int;
     } else {
-      fprintf(stderr, "Unknown setting: %s\n", name);
+      fprintf(stderr, "Unknown DAC5687 QMC setting: %s\n", name);
       return 0;
     }
     return 1;
@@ -524,7 +551,7 @@ int CFG_HandleMCP2210Config(void *user, const char *section, const char *name,
     } else if (section_match(section, MCP_CHIP_SECTION)) {
         return HandleMCPChipBlock(config, name, value);
     } else {
-        fprintf(stderr, "Encountered unknown section: %s.\n", section);
+        fprintf(stderr, "Encountered unknown MCP2210 section: %s.\n", section);
         return -1;
     }
 }
@@ -554,7 +581,7 @@ int CFG_HandleDAC5687Config(void *user, const char *section, const char *name,
     } else if (section_match(section, DAC_QMC_SECTION)) {
         HandleDACQMCBlock(config, name, value);
     } else {
-        fprintf(stderr, "Encountered unknown block: %s.\n", section);
+        fprintf(stderr, "Encountered unknown DAC5687 section: %s.\n", section);
         return 0;
     }
     return 1;
@@ -599,14 +626,7 @@ void CFG_PrintMCP2210Config(MCP2210Settings settings) {
     printf("\t\tGPIO 8 Value: 0x%01x\n", settings.chip.defaultGPIOValue & GPIO8);
     printf("\t\tChip Settings: 0x%02x\n", settings.chip.chipSettings);
     printf("\t\tAccess Control Enabled: %d\n", settings.chip.chipAccessControl);
-    printf("\t\tChip Password: %c%c%c%c%c%c%c%c\n\n", settings.chip.pass.char0,
-                                                settings.chip.pass.char1,
-                                                settings.chip.pass.char2,
-                                                settings.chip.pass.char3,
-                                                settings.chip.pass.char4,
-                                                settings.chip.pass.char5,
-                                                settings.chip.pass.char6,
-                                                settings.chip.pass.char7);
+    printf("\t\tChip Password: %s\n\n", settings.chip.pass);
 
     printf("\t----SPI----\n");
     printf("\t\tBit Rate: %d\n bps", settings.spi.bitRate);
