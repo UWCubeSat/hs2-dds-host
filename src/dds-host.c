@@ -35,6 +35,9 @@
 // HIDAPI
 #include <hidapi.h>
 
+// inih
+#include <ini.h>
+
 // project libraries
 #include "cfg.h"
 #include "dds-host.h"
@@ -52,500 +55,84 @@ static void PrintUsage() {
   fprintf(stderr, "\t-D: Specifies the path to a folder containing data files.\n");
 }
 
-static bool HandleDACConfiguration(DAC5687Settings *out) {
-  return true;
-}
-
-static bool HandleMCPConfiguration(MCP2210Settings *out) {
-  return true;
-}
-
-static bool HandleInteractiveMode(Settings *out) {
+static int HandleInteractiveMode(Settings *out) {
   // TODO: implement interactive mode
   //       - Step for each DAC register, user chooses if they'd like to configure that register
   //          - default values for registers which aren't configured
   //       - Step for each MCP2210 config block: usb, chip, spi
   //          - user can choose to, defaults will be chosen otherwise
-  return true;
+  return 0;
 }
 
-static bool HandleMCPConfigOptions(ConfigBlock *blocks, MCP2210Settings *settings) {
-  // spicy if-else if-else block
-  for (int i = 0; i < blocks->num_elements; i++) {
-    ConfigBlock *block = blocks + i;
-    if (strcmp(block->key, MCP_USB_CFG_KEY) == 0) {
-      HandleMCPUSBBlock(block, settings);
-    } else if (strcmp(block->key, MCP_CHIP_CFG_KEY) == 0) {
-      HandleMCPChipBlock(block, settings);
-    } else if (strcmp(block->key, MCP_SPI_CFG_KEY) == 0) {
-      HandleMCPSPIBlock(block, settings);
-    } else {
-      fprintf(stderr, "Encountered unknown block: %s.\n", block->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACVersionBlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint8_t val_int = (uint8_t) strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_VERSION_SLEEP_A) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->version.sleep_dac_a = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_VERSION_SLEEP_B) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->version.sleep_dac_b = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_VERSION_HPLA) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->version.hpla = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_VERSION_HPLB) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->version.hplb = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACConfig0Block(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_CONFIG0_PLL_DIV) == 0) {
-      if (val_int > 0b11) {
-        return false;
-      }
-      settings->config_0.pll_vco_div = (PLLVCODiv) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG0_PLL_FREQ) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_0.pll_freq = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG0_PLL_KV) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_0.pll_kv = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG0_INTERP) == 0) {
-      if (val_int > 0b11) {
-        return false;
-      }
-      settings->config_0.fir_interp = (FIRInterp) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG0_INV_PLL_LOCK) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_0.inv_pll_lock = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG0_FIFO_BYPASS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_0.fifo_bypass = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACConfig1Block(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_CONFIG1_QFLAG) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.qflag = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_INTERL) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.interl = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_DUAL_CLK) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.dual_clk = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_TWOS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.twos = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_REV_ABUS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.rev_abus = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_REV_BBUS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.rev_bbus = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_FIR_BYPASS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.fir_bypass = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG1_FULL_BYPASS) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_1.full_bypass = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACConfig2Block(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_CONFIG2_NCO) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_2.nco = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG2_NCO_GAIN) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_2.nco_gain = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG2_QMC) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_2.qmc = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG2_CM_MODE) == 0) {
-      if (val_int > 0b1111) {
-        return false;
-      }
-      settings->config_2.cm_mode = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG2_INV_SINC) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_2.invsinc = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACConfig3Block(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_CONFIG3_SIF_4PIN) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_3.sif_4_pin = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG3_DAC_SER_DATA) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_3.dac_ser_data = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG3_HALF_RATE) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_3.half_rate = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG3_USB) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->config_3.usb = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_CONFIG3_COUNTER_MODE) == 0) {
-      if (val_int > 7) {
-        return false;
-      }
-      settings->config_3.counter_mode = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACSyncCntlBlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char * end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_SYNCCNTL_SYNC_PHSTR) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->sync_cntl.sync_phstr = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_NCO) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->sync_cntl.sync_nco = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_CM) == 0) {
-      if (val_int > 1) {
-        return false;
-      }
-      settings->sync_cntl.sync_cm = (uint8_t) val_int;
-    } else if (strcmp(element->key, DAC_SYNCCNTL_SYNC_FIFO) == 0) {
-      if (val_int > 7) {
-        return false;
-      }
-      settings->sync_cntl.sync_fifo = (uint8_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACNCOBlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char *end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_NCO_FREQ) == 0) {
-      if (val_int > ((0b1 << 32) - 1)) { // 2^32 - 1
-        return false;
-      }
-      settings->nco_freq = (uint32_t) val_int;
-    } else if (strcmp(element->key, DAC_NCO_PHASE) == 0) {
-      if (val_int > ((0b1 << 16) - 1)) {  // 2^16 - 1
-        return false;
-      }
-      settings->nco_phase = (uint16_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACDACABlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char *end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_DAC_OFFSET) == 0) {
-      if (val_int > ((0b1 << 12) - 1)) {  // 2^12 - 1
-        return false;
-      }
-      settings->dac_a_off = (uint16_t) val_int;
-    } else if (strcmp(element->key, DAC_DAC_GAIN) == 0) {
-      if (val_int > ((0b1 << 11) - 1)) {  // 2^11 - 1
-        return false;
-      }
-      settings->dac_a_gain = (uint16_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACDACBBlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char *end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_DAC_OFFSET) == 0) {
-      if (val_int > ((0b1 << 12) - 1)) {  // 2^12 - 1
-        return false;
-      }
-      settings->dac_b_off = (uint16_t) val_int;
-    } else if (strcmp(element->key, DAC_DAC_GAIN) == 0) {
-      if (val_int > ((0b1 << 11) - 1)) {  // 2^11 - 1
-        return false;
-      }
-      settings->dac_b_gain = (uint16_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACQMCBlock(ConfigBlock *block, DAC5687Settings *settings) {
-  for (int i = 0; i < block->num_elements; i++) {
-    ConfigElement *element = block->elements + i;
-    char *end;
-    uint64_t val_int = strtol(element->value, &end, CFG_BASE);
-    if (strcmp(element->key, DAC_QMC_GAIN_A) == 0) {
-      if (val_int > ((0b1 << 10) - 1)) {  // 2^10 - 1
-        return false;
-      }
-      settings->qmc_a_gain = (uint16_t) val_int;
-    } else if (strcmp(element->key, DAC_QMC_GAIN_B) == 0) {
-      if (val_int > ((0b1 << 10) - 1)) {  // 2^10 - 1
-        return false;
-      }
-      settings->qmc_b_gain = (uint16_t) val_int;
-    } else if (strcmp(element->key, DAC_QMC_PHASE) == 0) {
-      if (val_int > ((0b1 << 9) - 1)) { // 2^9 - 1
-        return false;
-      }
-      settings->qmc_phase = (uint16_t) val_int;
-    } else {
-      fprintf(stderr, "Unknown setting: %s\n", element->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleDACConfigOptions(ConfigBlock *blocks, DAC5687Settings *settings) {
-  // spicy if-else if-else block
-  for (int i = 0; i < blocks->num_elements; i++) {
-    ConfigBlock *block = blocks + i;
-    if (strcmp(block->key, DAC_VERSION_CFG_KEY) == 0) {
-      HandleDACVersionBlock(block, settings);
-    } else if (strcmp(block->key, DAC_CONFIG_0_CFG_KEY) == 0) {
-      HandleDACConfig0Block(block, settings);
-    } else if (strcmp(block->key, DAC_CONFIG_1_CFG_KEY) == 0) {
-      HandleDACConfig1Block(block, settings);
-    } else if (strcmp(block->key, DAC_CONFIG_2_CFG_KEY) == 0) {
-      HandleDACConfig2Block(block, settings);
-    } else if (strcmp(block->key, DAC_CONFIG_3_CFG_KEY) == 0) {
-      HandleDACConfig3Block(block, settings);
-    } else if (strcmp(block->key, DAC_SYNC_CNTL_CFG_KEY) == 0) {
-      HandleDACSyncCntlBlock(block, settings);
-    } else if (strcmp(block->key, DAC_NCO_CFG_KEY) == 0) {
-      HandleDACNCOBlock(block, settings);
-    } else if (strcmp(block->key, DAC_DACA_CFG_KEY) == 0) {
-      HandleDACDACABlock(block, settings);
-    } else if (strcmp(block->key, DAC_DACB_CFG_KEY) == 0) {
-      HandleDACDACBBlock(block, settings);
-    } else if (strcmp(block->key, DAC_QMC_CFG_KEY) == 0) {
-      HandleDACQMCBlock(block, settings);
-    } else {
-      fprintf(stderr, "Encountered unknown block: %s.\n", block->key);
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool HandleConfigMode(Settings *out, char *dac_cfg, char *mcp_cfg) {
-  int mcp_fd;
-  int dac_fd;
-  DAC5687Settings dac_settings = {0};
-  MCP2210Settings mcp_settings = {0};
-  Config dac_config = {0};
-  Config mcp_config = {0};
+static int HandleConfigMode(Settings *out, char *dac_cfg_path, char *mcp_cfg_path) {
+  int status;
 
   if (out == NULL) {
-    return false;
+    fprintf(stderr, "out can't be null\n");
+    return -1;
   }
 
-  mcp_fd = open(mcp_cfg, O_RDONLY);
-  dac_fd = open(dac_cfg, O_RDONLY);
-
-  if (mcp_fd < 0) {
-    perror("Failed to open the MCP2210 config file.");
-    return false;
+  status = ini_parse(mcp_cfg_path, CFG_HandleMCP2210Config, &out->mcp);
+  printf("Handle MCP2210 Status: %d\n", status);
+  if (status != 0) {
+    fprintf(stderr, "Failed to parse MCP2210 config file.\n");
+    return -1;
   }
-
-  if (dac_fd < 0) {
-    perror("Failed to open the DAC5687 config file.");
-    return false;
-  }
-
-  // if (!CFG_ParseConfigFile(mcp_fd, &mcp_cfg)) {
-  //   fprintf(stderr, "Failed to parse MCP config file.\n");
-  //   return false;
-  // }
   
-  // if (!CFG_ParseConfigFile(dac_fd, &dac_cfg)) {
-  //   fprintf(stderr, "Failed to parse DAC config file.\n");
-  //   return false;
-  // }
-
-  // if (!HandleDACConfigOptions(&dac_config, &dac_settings)) {
-  //   fprintf(stderr, "Failed to read out DAC settings.\n");
-  //   return false;
-  // }  
-
-  // if (!HandleMCPConfigOptions(&mcp_config, &mcp_settings)) {
-  //   fprintf(stderr, "Failed to read out MCP settings.\n");
-  //   return false;
-  // }
-  return true;
+  status = ini_parse(dac_cfg_path, CFG_HandleDAC5687Config, &out->dac);
+  printf("Handle DAC5687 Status: %d\n", status);
+  if (status != 0) {
+    fprintf(stderr, "Failed to parse DAC config file.\n");
+    return -1;
+  }
+  return 0;
 }
 
 // verify that arguments are correct for config mode
-static bool CheckConfigArgs(int argc, char *dac_cfg, char *mcp_cfg, char *data_path) {
+static int CheckConfigArgs(int argc, char *dac_cfg, char *mcp_cfg, char *data_path) {
   // first check that the number of args was right
   if (argc != 8) {
     fprintf(stderr, "Error - wrong number of arguments in config mode.\n");
-    return false;
+    return -1;
   }
 
   // check that files exist
   if (access(dac_cfg, F_OK) < 0) {
     fprintf(stderr, "Error - supplied DAC config file doesn't appear to exist.\n");
-    return false;
+    return -1;
   }
 
   if (access(mcp_cfg, F_OK) < 0) {
     fprintf(stderr, "Error - supplied MCP config file doesn't appear to exist.\n");
-    return false;
+    return -1;
   }
 
   if (access(data_path, F_OK) < 0) {
     fprintf(stderr, "Error - supplied data directory file doesn't appear to exist.\n");
-    return false;
+    return -1;
   }
-  return true;
+  return 0;
 }
 
 // verify that arguments are correct for interactive mode
-static bool CheckInteractiveArgs(int argc, char *data_path) {
+static int CheckInteractiveArgs(int argc, char *data_path) {
   if (argc != 4) {
-    return false;
+    return -1;
   }
 
   if (!access(data_path, F_OK)) {
-    return false;
+    return -1;
   }
-  return true;
+  return 0;
 }
 
 // configures the attached peripherals
-static bool ConfigureDevices(hid_device *handle, Settings *settings) {
-  if (!MCP2210_Configure(handle, &settings->mcp_settings) || 
-      !DAC5687_Configure(handle, &settings->dac_settings)) {
-    return false;
+static int ConfigureDevices(hid_device *handle, Settings *settings) {
+  if (!MCP2210_Configure(handle, &settings->mcp) || 
+      !DAC5687_Configure(handle, &settings->dac)) {
+    return -1;
   }
-  return true;
+  return 0;
 }
 
 // returns the number of data items, and places data items in data buffer.
@@ -558,7 +145,6 @@ static void WriteData(CSVFile *data_file) {
   for (unsigned long long i = 0; i < data_file->numRows; i++) {
     uint32_t address = 0;
     uint32_t data = 0;
-    // printf("%d\n", i);
 
     for (unsigned long long j = 0; j < data_file->numCols; j++) {
       char *cell_str = CSV_ReadElement(data_file, i + 1, j + 1);
@@ -628,20 +214,20 @@ int main(int argc, char *argv[]) {
     strcpy(dac_path, argv[3]);
     strcpy(mcp_path, argv[5]);
     strcpy(data_path, argv[7]);
-    if (!CheckConfigArgs(argc, dac_path, mcp_path, data_path)) {
+    if (CheckConfigArgs(argc, dac_path, mcp_path, data_path) < 0) {
       PrintUsage();
       return EXIT_FAILURE;
     } else {
       printf("Entering config mode...\n");
-      success = HandleConfigMode(&settings, dac_path, mcp_path);
+      success = HandleConfigMode(&settings, dac_path, mcp_path) == 0;
     }
   } else if (interactive && !config) {
-    if (!CheckInteractiveArgs(argc, data_path)) {
+    if (CheckInteractiveArgs(argc, data_path) < 0) {
       PrintUsage();
       return EXIT_FAILURE;
     } else {
       printf("Entering interactive mode...\n");
-      success = HandleInteractiveMode(&settings);
+      success = HandleInteractiveMode(&settings) == 0;
     } 
   } else {
     PrintUsage();
@@ -654,13 +240,15 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  // attempt to open an attached HID
-  mcp = MCP2210_Init();
+  CFG_PrintConfig(settings);
 
-  if (mcp == NULL) {
-    hid_exit();
-    return EXIT_FAILURE;
-  }
+  // attempt to open an attached HID
+  // mcp = MCP2210_Init();
+
+  // if (mcp == NULL) {
+  //   hid_exit();
+  //   return EXIT_FAILURE;
+  // }
 
   // if (!ConfigureDevices(mcp, &settings)) {
   //   return EXIT_FAILURE;
@@ -693,10 +281,29 @@ int main(int argc, char *argv[]) {
     printf("Data written\n");
     CSV_Close(next_data_file);
   }
-  fprintf(stderr, "No more files...\n");
-  // trigger the burst-write from the SRAM to the DAC
-  // TODO: pull GP7 high on MCP2210
+  printf("No more files...\n");
 
-  MCP2210_Close(mcp);
+  // // trigger the burst-write from the SRAM to the DAC
+  // if (MCP2210_ReadGPIOValues(mcp, &settings.mcp.chip.defaultGPIOValue) < 0) {
+  //   return EXIT_FAILURE;
+  // }
+
+  // if (MCP2210_ReadGPIODirections(mcp, &settings.mcp.chip.defaultGPIODirection) < 0) {
+  //   return EXIT_FAILURE;
+  // }
+
+  // // ensure it's an output
+  // settings.mcp.chip.defaultGPIODirection &= ~(GPIO7);
+  // if (MCP2210_WriteGPIODirections(mcp, settings.mcp.chip.defaultGPIODirection) < 0) {
+  //   return EXIT_FAILURE;
+  // }
+
+  // // pull the pin HIGH
+  // settings.mcp.chip.defaultGPIOValue |= GPIO7;
+  // if (MCP2210_WriteGPIOValues(mcp, settings.mcp.chip.defaultGPIOValue) < 0) {
+  //   return EXIT_FAILURE;
+  // }
+
+  // MCP2210_Close(mcp);
   return EXIT_SUCCESS;
 }
