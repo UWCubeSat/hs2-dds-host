@@ -56,6 +56,17 @@
 // MCP2210 GPIO Pin Count
 #define GPIO_COUNT                  9
 
+// MCP2210 Pin Flags
+#define GPIO0                       (1 << 0)
+#define GPIO1                       (1 << 1)
+#define GPIO2                       (1 << 2)
+#define GPIO3                       (1 << 3)
+#define GPIO4                       (1 << 4)
+#define GPIO5                       (1 << 5)
+#define GPIO6                       (1 << 6)
+#define GPIO7                       (1 << 7)
+#define GPIO8                       (1 << 8)
+
 // MCP2210 Power Options
 #define HOST_POWERED                (0x1 << 7)
 #define SELF_POWERED                (0x1 << 6)
@@ -65,7 +76,7 @@
 #define MAX_MAN_STR_LEN             29
 
 // EEPROM stuff
-#define EEPROM_MIN_ADDR
+#define EEPROM_MIN_ADDR             0
 #define EEPROM_MAX_ADDR             255
 
 // SPI Data transfer stuff
@@ -157,9 +168,9 @@ typedef struct mcp2210_spi_transfer_settings_st {
 } MCP2210SPITransferSettings;
 
 typedef struct mcp2210_settings_t {
-  MCP2210SPITransferSettings spi_settings;
-  MCP2210ChipSettings chip_settings;
-  MCP2210USBKeySettings usb_settings;
+  MCP2210SPITransferSettings spi;
+  MCP2210ChipSettings chip;
+  MCP2210USBKeySettings usb;
 } MCP2210Settings;
 
 // Initializes the MCP2210. Places a hid_device handle in 'out'.

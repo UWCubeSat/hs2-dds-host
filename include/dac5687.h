@@ -25,7 +25,7 @@
 #ifndef DAC5687_H_
 #define DAC5687_H_
 
-#include "mcp2210.h"
+// #include "mcp2210.h"
 #include "csv.h"
 
 #include <stdlib.h>
