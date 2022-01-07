@@ -159,8 +159,8 @@ static void WriteData(CSVFile *data_file) {
       }
     }
     address >>= 1;
-    printf("Address: 0x%X, Data: 0x%X\n", address, data);
-    // SRAM_WriteAddress(mcp, address, data);
+    // printf("Address: 0x%X, Data: 0x%X\n", address, data);
+    SRAM_WriteAddress(mcp, address, data);
   }
 }
 
@@ -240,19 +240,17 @@ int main(int argc, char *argv[]) {
     return EXIT_FAILURE;
   }
 
-  CFG_PrintConfig(settings);
-
   // attempt to open an attached HID
-  // mcp = MCP2210_Init();
+  mcp = MCP2210_Init();
 
-  // if (mcp == NULL) {
-  //   hid_exit();
-  //   return EXIT_FAILURE;
-  // }
+  if (mcp == NULL) {
+    hid_exit();
+    return EXIT_FAILURE;
+  }
 
-  // if (!ConfigureDevices(mcp, &settings)) {
-  //   return EXIT_FAILURE;
-  // }
+  if (!ConfigureDevices(mcp, &settings)) {
+    return EXIT_FAILURE;
+  }
 
   DIR *dir_fd = opendir(data_path);
   if (dir_fd == NULL) {
@@ -283,27 +281,27 @@ int main(int argc, char *argv[]) {
   }
   printf("No more files...\n");
 
-  // // trigger the burst-write from the SRAM to the DAC
-  // if (MCP2210_ReadGPIOValues(mcp, &settings.mcp.chip.defaultGPIOValue) < 0) {
-  //   return EXIT_FAILURE;
-  // }
+  // trigger the burst-write from the SRAM to the DAC
+  if (MCP2210_ReadGPIOValues(mcp, &settings.mcp.chip.defaultGPIOValue) < 0) {
+    return EXIT_FAILURE;
+  }
 
-  // if (MCP2210_ReadGPIODirections(mcp, &settings.mcp.chip.defaultGPIODirection) < 0) {
-  //   return EXIT_FAILURE;
-  // }
+  if (MCP2210_ReadGPIODirections(mcp, &settings.mcp.chip.defaultGPIODirection) < 0) {
+    return EXIT_FAILURE;
+  }
 
-  // // ensure it's an output
-  // settings.mcp.chip.defaultGPIODirection &= ~(GPIO7);
-  // if (MCP2210_WriteGPIODirections(mcp, settings.mcp.chip.defaultGPIODirection) < 0) {
-  //   return EXIT_FAILURE;
-  // }
+  // ensure it's an output
+  settings.mcp.chip.defaultGPIODirection &= ~(GPIO7);
+  if (MCP2210_WriteGPIODirections(mcp, settings.mcp.chip.defaultGPIODirection) < 0) {
+    return EXIT_FAILURE;
+  }
 
-  // // pull the pin HIGH
-  // settings.mcp.chip.defaultGPIOValue |= GPIO7;
-  // if (MCP2210_WriteGPIOValues(mcp, settings.mcp.chip.defaultGPIOValue) < 0) {
-  //   return EXIT_FAILURE;
-  // }
+  // pull the pin HIGH
+  settings.mcp.chip.defaultGPIOValue |= GPIO7;
+  if (MCP2210_WriteGPIOValues(mcp, settings.mcp.chip.defaultGPIOValue) < 0) {
+    return EXIT_FAILURE;
+  }
 
-  // MCP2210_Close(mcp);
+  MCP2210_Close(mcp);
   return EXIT_SUCCESS;
 }
