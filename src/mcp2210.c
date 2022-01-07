@@ -101,15 +101,15 @@ int MCP2210_Configure(hid_device *handle, const MCP2210Settings *settings) {
   }
 
   // configure the MCP2210
-  if (MCP2210_WriteSpiSettings(handle, &settings->spi_settings, false) < 0) {
+  if (MCP2210_WriteSpiSettings(handle, &settings->spi, false) < 0) {
     return -1;
   }
 
-  if (MCP2210_WriteChipSettings(handle, &settings->chip_settings, false < 0)) {
+  if (MCP2210_WriteChipSettings(handle, &settings->chip, false < 0)) {
     return -1;
   }
 
-  if (MCP2210_WriteUSBSettings(handle, &settings->usb_settings) < 0) {
+  if (MCP2210_WriteUSBSettings(handle, &settings->usb) < 0) {
     return -1;
   }
   return 0;
@@ -522,18 +522,19 @@ int MCP2210_ReadProductName(hid_device *handle, char currentName[30]) {
 }
 
 int MCP2210_WriteGPIOValues(hid_device *handle, uint16_t newGPIOValues) {
+  uint16_t currentGPIOValues;
+  uint8_t txBuf[MCP2210_REPORT_LEN];
+  uint8_t rxBuf[MCP2210_REPORT_LEN];
+
   if (handle == NULL) {
     fprintf(stderr, "handle must not be null\n");
     return -1;
   }
 
-  uint8_t txBuf[MCP2210_REPORT_LEN];
-  uint8_t rxBuf[MCP2210_REPORT_LEN];
-
   memset(txBuf, 0, MCP2210_REPORT_LEN);
   memset(rxBuf, 0, MCP2210_REPORT_LEN);
 
-  txBuf[0] = GetCurrentGPIOPinVal;
+  txBuf[0] = SetCurrentGPIOPinVal;
 
   txBuf[4] = (uint8_t) (newGPIOValues & 0xFF);
   txBuf[5] = (uint8_t) ((newGPIOValues & 0xFF00) >> 8);
