@@ -47,7 +47,7 @@
 #include "csv.h"
 
 static void PrintUsage() {
-  fprintf(stderr, "Usage: ./bin/dds-host <--i | --c [-d <dac_config_file_path> -m <mcp_config_file_path> -D <data_folder>]>\n");
+  fprintf(stderr, "Usage: dds-host <--i | --c [-d <dac_config_file_path> -m <mcp_config_file_path> -D <data_folder>]>\n");
   fprintf(stderr, "\t--i: Enter interactive and manually configure each device. Specify either this or --c\n");
   fprintf(stderr, "\t--c: Enter configuration mode and pass configuration files. Specify either this or --i\n");
   fprintf(stderr, "\t\t-d: Specifies the path to the DAC5687 configuration file in config mode.\n");
