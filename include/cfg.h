@@ -37,12 +37,12 @@
 #define MCP_USB_SECTION  "USB"
 #define MCP_CHIP_SECTION  "CHIP"
 
-#define MCP_USB_POWER_OPTION  "power_option"
+#define MCP_USB_POWER_OPTION  "poweroption"
 #define MCP_USB_REQUEST_CURRENT  "request_current"
 #define MCP_USB_VID  "vid"
 #define MCP_USB_PID  "pid"
 
-#define MCP_CHIP_GP   "gp_"
+#define MCP_CHIP_GP_DES   "gp_des"
 // #define MCP_CHIP_GP0  "gp0"
 // #define MCP_CHIP_GP1  "gp1"
 // #define MCP_CHIP_GP2  "gp2"
@@ -53,7 +53,7 @@
 // #define MCP_CHIP_GP7  "gp7"
 // #define MCP_CHIP_GP8  "gp8"
 
-#define MCP_CHIP_GP_DIR  "gp_dir_"
+#define MCP_CHIP_GP_DIR  "gp_dir"
 // #define MCP_CHIP_GP0_DIR  "gp1_dir"
 // #define MCP_CHIP_GP1_DIR  "gp1_dir"
 // #define MCP_CHIP_GP2_DIR  "gp2_dir"
@@ -64,7 +64,7 @@
 // #define MCP_CHIP_GP7_DIR  "gp7_dir"
 // #define MCP_CHIP_GP8_DIR  "gp8_dir"
 
-#define MCP_CHIP_GP_OUT  "gp_out_"
+#define MCP_CHIP_GP_OUT  "gp_out"
 // #define MCP_CHIP_GP0_OUT  "gp0_out"
 // #define MCP_CHIP_GP1_OUT  "gp1_out"
 // #define MCP_CHIP_GP2_OUT  "gp2_out"
@@ -82,7 +82,7 @@
 #define MCP_CHIP_PASS  "password"
 
 #define MCP_SPI_BIT_RATE  "bit_rate"
-#define MCP_SPI_CS_IDLE  "cs_idle_"
+#define MCP_SPI_CS_IDLE  "cs_idle"
 // #define MCP_SPI_CS_IDLE_0  "cs_idle_0"
 // #define MCP_SPI_CS_IDLE_1  "cs_idle_1"
 // #define MCP_SPI_CS_IDLE_2  "cs_idle_2"
@@ -93,7 +93,7 @@
 // #define MCP_SPI_CS_IDLE_7  "cs_idle_7"
 // #define MCP_SPI_CS_IDLE_8  "cs_idle_8"
 
-#define MCP_SPI_CS_ACTIVE  "cs_active_"
+#define MCP_SPI_CS_ACTIVE  "cs_active"
 // #define MCP_SPI_CS_ACTIVE_0  "cs_active_0"
 // #define MCP_SPI_CS_ACTIVE_1  "cs_active_1"
 // #define MCP_SPI_CS_ACTIVE_2  "cs_active_2"
@@ -126,7 +126,7 @@
 #define DAC_VERSION_SLEEP_A  "sleep_daca"
 #define DAC_VERSION_SLEEP_B  "sleep_dacb"
 #define DAC_VERSION_HPLA  "hpla"
-#define DAC_VERSION_HPLB  "hbla"
+#define DAC_VERSION_HPLB  "hplb"
 
 #define DAC_CONFIG0_PLL_DIV  "pll_div"
 #define DAC_CONFIG0_PLL_FREQ  "pll_freq"
@@ -184,11 +184,11 @@ int CFG_HandleMCP2210Config(void *user, const char *section, const char *name,
 int CFG_HandleDAC5687Config(void *user, const char *section, const char *name,
                             const char *value);
 
-int CFG_PrintMCP2210Config(MCP2210Settings *settings);
+void CFG_PrintMCP2210Config(MCP2210Settings settings);
 
-int CFG_PrintDAC5687Config(DAC5687Settings *settings);
+void CFG_PrintDAC5687Config(DAC5687Settings settings);
 
-int CFG_PrintConfig(Settings *settings);
+void CFG_PrintConfig(Settings settings);
 
 // creates a config file based on the blocks in the structure
 // bool CFG_GenerateConfigFromBlocks(ConfigBlock *blocks, int num_blocks, char * path);
