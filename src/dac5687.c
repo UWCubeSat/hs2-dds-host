@@ -158,7 +158,7 @@ bool DAC5687_WriteRegister(hid_device *handle, DAC5687Address addr, unsigned cha
   chipSettings.gp5Designation = DF;
 
   chipSettings.defaultGPIODirection = 0x0000;
-  chipSettings.defaultGPIOValue = 0xFFFF;
+  chipSettings.defaultGPIOValue = 0x0000;
 
   if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
     fprintf(stderr, "WriteSRAMAddress()->WriteChipSettings() failed\n");
