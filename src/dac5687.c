@@ -66,10 +66,9 @@ bool DAC5687_Configure(hid_device *handle, const DAC5687Settings *settings) {
               (settings->config_1.dual_clk << 5) | (settings->config_1.twos << 4) |
               (settings->config_1.rev_abus << 3) | (settings->config_1.rev_bbus << 2) |
               (settings->config_1.fir_bypass << 1) | (settings->config_1.full_bypass);
-  txBuf[3] = (settings->config_1.qflag << 7) | (settings->config_1.interl << 6) |
-              (settings->config_1.dual_clk << 5) | (settings->config_1.twos << 4) |
-              (settings->config_1.rev_abus << 3) | (settings->config_1.rev_bbus << 2) |
-              (settings->config_1.fir_bypass << 1) | (settings->config_1.full_bypass);
+  txBuf[3] = (settings->config_2.nco << 7) | (settings->config_2.nco_gain << 6) | 
+              (settings->config_2.qmc << 5) | (settings->config_2.cm_mode << 1) |
+              (settings->config_2.invsinc);
   txBuf[4] = (settings->config_3.sif_4_pin << 7) | (settings->config_3.dac_ser_data << 6) |
               (settings->config_3.half_rate << 5) | (settings->config_3.usb << 3) |
               (settings->config_3.counter_mode);
