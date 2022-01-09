@@ -35,6 +35,4 @@ typedef struct dds_data_t {
 
 #define MAX_PATH_LEN 64
 
-#define CFG_BASE 10
-
 #endif  // DDS_HOST_H_
