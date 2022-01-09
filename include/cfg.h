@@ -37,7 +37,7 @@
 #define MCP_USB_SECTION  "USB"
 #define MCP_CHIP_SECTION  "CHIP"
 
-#define MCP_USB_POWER_OPTION  "poweroption"
+#define MCP_USB_POWER_OPTION  "power_option"
 #define MCP_USB_REQUEST_CURRENT  "request_current"
 #define MCP_USB_VID  "vid"
 #define MCP_USB_PID  "pid"

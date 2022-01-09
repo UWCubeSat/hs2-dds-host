@@ -73,16 +73,14 @@ static int HandleConfigMode(Settings *out, char *dac_cfg_path, char *mcp_cfg_pat
   }
 
   status = ini_parse(mcp_cfg_path, CFG_HandleMCP2210Config, &out->mcp);
-  printf("Handle MCP2210 Status: %d\n", status);
   if (status != 0) {
-    fprintf(stderr, "Failed to parse MCP2210 config file.\n");
+    fprintf(stderr, "Failed to parse MCP2210 config file. Error code: %d\n", status);
     return -1;
   }
   
   status = ini_parse(dac_cfg_path, CFG_HandleDAC5687Config, &out->dac);
-  printf("Handle DAC5687 Status: %d\n", status);
   if (status != 0) {
-    fprintf(stderr, "Failed to parse DAC config file.\n");
+    fprintf(stderr, "Failed to parse DAC config file. Error code: %d\n", status);
     return -1;
   }
   return 0;

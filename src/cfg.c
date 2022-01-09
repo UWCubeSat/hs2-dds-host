@@ -90,7 +90,7 @@ static int HandleMCPChipBlock(MCP2210Settings *settings, const char *name,
     uint64_t val_int = (uint64_t) strtol(value, &end, CFG_BASE);
 
     if (key_contains(name, MCP_CHIP_GP_DES)) {
-      uint8_t id = (uint8_t) strtol(name, &end, CFG_BASE);
+      uint8_t id = (uint8_t) strtol(name, &end, 10);
 
       if (id > 8 || val_int > 2) {
         return 0;
@@ -130,13 +130,13 @@ static int HandleMCPChipBlock(MCP2210Settings *settings, const char *name,
         return 0;
       }
     } else if (key_contains(name, MCP_CHIP_GP_DIR)) {
-      uint8_t id = (uint8_t) strtol(name, &end, CFG_BASE);
+      uint8_t id = (uint8_t) strtol(name, &end, 10);
       if (id > 8) {
         return 0;
       }
       settings->chip.defaultGPIODirection |= (((uint8_t) val_int) << id);
     } else if (key_contains(name, MCP_CHIP_GP_OUT)) {
-      uint8_t id = (uint8_t) strtol(name, &end, CFG_BASE);
+      uint8_t id = (uint8_t) strtol(name, &end, 10);
       if (id > 8) {
         return 0;
       }
@@ -183,13 +183,13 @@ static bool HandleMCPSPIBlock(MCP2210Settings *settings, const char *name,
       }
       settings->spi.bitRate = (uint32_t) val_int;
     } else if (key_contains(name, MCP_SPI_CS_IDLE)) {
-      uint8_t id = (uint8_t) strtol(name, &end, CFG_BASE);
+      uint8_t id = (uint8_t) strtol(name, &end, 10);
       if (id > 8) {
         return 0;
       }
       settings->spi.idleCSValue |= (((uint8_t) val_int) << id);
     } else if (key_contains(name, MCP_SPI_CS_ACTIVE)) {
-      uint8_t id = (uint8_t) strtol(name, &end, CFG_BASE);
+      uint8_t id = (uint8_t) strtol(name, &end, 10);
       if (id > 8) {
         return 0;
       }
