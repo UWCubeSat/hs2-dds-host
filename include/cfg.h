@@ -171,7 +171,7 @@
 #define DAC_QMC_GAIN_B  "gain_b"
 #define DAC_QMC_PHASE  "phase"
 
-#define CFG_BASE 10
+#define CFG_BASE 16
 
 typedef struct settings_t {
     MCP2210Settings mcp;
