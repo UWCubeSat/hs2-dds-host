@@ -77,10 +77,10 @@ bool SRAM_WriteAddress(hid_device *handle, unsigned int addr, unsigned int txDat
   spiSettings.lastDataToCSDelay = 0x01;
 
   // CS_MEM is high when idle
-  spiSettings.idleCSValue = 0x0002;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_MEM is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0001;
 
   if (MCP2210_WriteSpiSettings(handle, &spiSettings, true) < 0) {
     fprintf(stderr, "WriteSRAMAddress()->WriteSpiSettings() failed\n");
@@ -94,12 +94,12 @@ bool SRAM_WriteAddress(hid_device *handle, unsigned int addr, unsigned int txDat
     return false;
   }
 
-  chipSettings.gp0Designation = GPIO;
+  chipSettings.gp0Designation = CS;
   chipSettings.gp1Designation = CS;
-  chipSettings.gp5Designation = DF;
+  chipSettings.gp5Designation = GPIO;
 
   chipSettings.defaultGPIODirection = 0x0000;
-  chipSettings.defaultGPIOValue = 0xFFFF;
+  chipSettings.defaultGPIOValue = 0x0000;
 
   if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
     fprintf(stderr, "WriteSRAMAddress()->WriteChipSettings() failed\n");
@@ -155,10 +155,10 @@ bool SRAM_ReadAddress(hid_device *handle, unsigned int addr, unsigned int *rxDat
   spiSettings.lastDataToCSDelay = 0x01;
 
   // CS_MEM is high when idle
-  spiSettings.idleCSValue = 0x0002;
+  spiSettings.idleCSValue = 0x0003;
 
   // CS_MEM is low when active
-  spiSettings.activeCSValue = 0x0000;
+  spiSettings.activeCSValue = 0x0001;
 
   if (MCP2210_WriteSpiSettings(handle, &spiSettings, true) < 0) {
     fprintf(stderr, "WriteSRAMAddress()->WriteSpiSettings() failed\n");
@@ -172,12 +172,12 @@ bool SRAM_ReadAddress(hid_device *handle, unsigned int addr, unsigned int *rxDat
     return false;
   }
 
-  chipSettings.gp0Designation = GPIO;
+  chipSettings.gp0Designation = CS;
   chipSettings.gp1Designation = CS;
-  chipSettings.gp5Designation = DF;
+  chipSettings.gp5Designation = GPIO;
 
   chipSettings.defaultGPIODirection = 0x0000;
-  chipSettings.defaultGPIOValue = 0xFFFF;
+  chipSettings.defaultGPIOValue = 0x0000;
 
   if (MCP2210_WriteChipSettings(handle, &chipSettings, true) < 0) {
     fprintf(stderr, "WriteSRAMAddress()->WriteChipSettings() failed\n");
